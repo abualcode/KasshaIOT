@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>KasshaIOT Remote</title>
+<script src="https://unpkg.com/mqtt@4/dist/mqtt.min.js"></script>
+<style>
+:root{
+  --paper:#FBF7EF;--cream:#ECE3D2;--sand:#C2B7A3;--stone:#6E665B;
+  --ink:#14110E;--crimson:#8B1E2D;--gold:#C9A24C;--gold-lt:#F0E4B8;
+  --ok:#2D6A4F;--ok-bg:#D4EDDA;--warn-clr:#7A5C00;--warn-bg:#FFF3CD;
+  --r:14px;--rs:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:var(--paper);color:var(--ink);font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;}
+a{color:inherit;text-decoration:none;}
+
+.topbar{background:var(--ink);padding:0 14px;display:flex;align-items:center;justify-content:space-between;height:58px;gap:10px;background-image:radial-gradient(rgba(201,162,76,.07) 1px,transparent 1px);background-size:22px 22px;}
+.brand{display:flex;align-items:center;gap:9px;}
+.brand-name{font-size:20px;font-weight:700;color:var(--paper);}
+.brand-sub{font-size:11px;color:var(--sand);margin-top:1px;}
+.conn-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;font-size:12px;border:1.5px solid rgba(194,183,163,.3);color:var(--sand);cursor:pointer;}
+.conn-pill::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--sand);flex-shrink:0;}
+.conn-pill.ok{border-color:rgba(45,106,79,.5);color:#6fcf97;}
+.conn-pill.ok::before{background:#6fcf97;}
+.conn-pill.err{border-color:rgba(176,39,43,.5);color:#f28b8b;}
+.conn-pill.err::before{background:#f28b8b;}
+
+.wrap{max-width:900px;margin:0 auto;padding:14px 10px;}
+.card{background:#fff;border:1px solid var(--cream);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:0 1px 10px rgba(20,17,14,.05);}
+
+/* Settings panel */
+.sett-panel{background:var(--ink);border:1px solid rgba(201,162,76,.2);border-radius:var(--r);padding:16px;margin-bottom:12px;}
+.sett-panel h2{color:var(--gold);font-size:16px;font-weight:600;margin-bottom:14px;}
+.sett-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:12px;}
+.sett-panel label{color:var(--sand);font-size:13px;display:block;margin-bottom:4px;}
+.sett-panel input{width:100%;padding:10px 12px;border-radius:var(--rs);border:1px solid rgba(194,183,163,.3);background:rgba(255,255,255,.07);color:var(--paper);font-size:16px;font-family:inherit;}
+.sett-panel input:focus{outline:none;border-color:rgba(201,162,76,.6);}
+.sett-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;}
+.btn-connect{background:var(--gold);color:var(--ink);border:0;border-radius:var(--rs);padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;min-height:44px;}
+.btn-disconnect{background:transparent;color:var(--sand);border:1px solid rgba(194,183,163,.3);border-radius:var(--rs);padding:10px 16px;font-size:13px;cursor:pointer;min-height:44px;}
+.sett-hint{color:var(--stone);font-size:11px;margin-top:10px;line-height:1.6;}
+
+/* Status bar */
+.status-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.stat-chip{background:var(--cream);border:1px solid var(--sand);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--stone);display:inline-flex;align-items:center;gap:5px;}
+.stat-chip strong{color:var(--ink);}
+
+/* Relay grid */
+.section-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
+.section-hdr h2{font-size:16px;font-weight:600;}
+.section-hdr h2::after{content:'';display:block;width:20px;height:2px;background:var(--gold);border-radius:2px;margin-top:4px;}
+.relay-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;}
+.relay-card{background:#fff;border:1.5px solid var(--cream);border-radius:var(--r);padding:13px;transition:border-color .2s;}
+.relay-card.on{border-color:var(--gold);box-shadow:0 2px 8px rgba(201,162,76,.14);}
+.relay-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:11px;}
+.relay-name{font-size:13px;font-weight:600;word-break:break-word;line-height:1.3;}
+.relay-ch{color:var(--stone);font-size:10px;margin-top:2px;}
+.relay-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;}
+.badge.on{background:var(--ok-bg);color:var(--ok);}
+.badge.off{background:var(--cream);color:var(--stone);}
+.badge.pulse{background:var(--warn-bg);color:var(--warn-clr);}
+.pulse-ico{background:var(--gold-lt);color:var(--warn-clr);border:1px solid var(--gold);border-radius:8px;padding:7px 12px;font-size:17px;cursor:pointer;line-height:1;min-height:38px;display:inline-flex;align-items:center;}
+.tog{position:relative;display:inline-block;width:50px;height:27px;cursor:pointer;flex-shrink:0;}
+.tog input{position:absolute;opacity:0;width:0;height:0;}
+.tog-track{position:absolute;inset:0;background:var(--cream);border:1.5px solid var(--sand);border-radius:999px;transition:.2s;}
+.tog input:checked~.tog-track{background:var(--crimson);border-color:var(--crimson);}
+.tog-thumb{position:absolute;top:4px;left:4px;width:19px;height:19px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:transform .2s;pointer-events:none;}
+.tog input:checked~.tog-thumb{transform:translateX(23px);}
+
+/* Bulk actions */
+.actions{display:flex;flex-wrap:wrap;gap:8px;}
+button.pr{background:var(--crimson);color:#fff;border:0;border-radius:var(--rs);padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
+button.dn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
+button.gh{background:var(--cream);color:var(--ink);border:1px solid var(--sand);border-radius:var(--rs);padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
+
+/* Current sensor */
+.curr-bar{background:var(--paper);border:1.5px solid var(--gold-lt);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.amp-val{font-family:Consolas,'Courier New',monospace;font-size:28px;font-weight:700;color:var(--crimson);}
+.amp-lbl{color:var(--stone);font-size:12px;margin-top:2px;}
+
+.page-footer{background:var(--ink);color:var(--stone);text-align:center;padding:14px;font-size:12px;margin-top:4px;}
+.page-footer strong{color:var(--gold);}
+.hidden{display:none!important;}
+
+@media(max-width:480px){
+  .topbar{height:52px;padding:0 10px;}
+  .brand-name{font-size:17px;}
+  .sett-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 48" width="30" height="36" aria-hidden="true">
+      <line x1="20" y1="12" x2="20" y2="4" stroke="#C2B7A3" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="20" cy="3" r="2.5" fill="#C9A24C"/>
+      <ellipse cx="20" cy="13" rx="12" ry="3.5" fill="#6B1823"/>
+      <path d="M8 13 L6.5 37 Q6.5 44 20 44 Q33.5 44 33.5 37 L32 13Z" fill="#8B1E2D"/>
+      <path d="M12 23 h3 v3 h5 M25 26 v-3 h3" stroke="rgba(201,162,76,.42)" stroke-width=".9" fill="none" stroke-linecap="round"/>
+      <path d="M5.5 36 Q5.5 44 20 44 Q34.5 44 34.5 36 L33.5 34 Q20 37.5 6.5 34Z" fill="#C9A24C"/>
+    </svg>
+    <div>
+      <div class="brand-name">KasshaIOT</div>
+      <div class="brand-sub">تحكم عن بعد — MQTT</div>
+    </div>
+  </div>
+  <div id="connPill" class="conn-pill" onclick="toggleSettings()">⚙ إعداد الاتصال</div>
+</header>
+
+<div class="wrap">
+
+  <!-- Connection settings -->
+  <div id="settPanel" class="sett-panel">
+    <h2>إعدادات الاتصال بـ HiveMQ Cloud</h2>
+    <div class="sett-grid">
+      <div>
+        <label>Broker URL</label>
+        <input id="cfgBroker" placeholder="abc.hivemq.cloud" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div>
+        <label>Username</label>
+        <input id="cfgUser" placeholder="اسم المستخدم" autocomplete="off">
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="cfgPass" type="password" placeholder="كلمة المرور">
+      </div>
+      <div>
+        <label>Base Topic</label>
+        <input id="cfgTopic" placeholder="relay16/ESP32-Relay16" value="relay16/ESP32-Relay16">
+      </div>
+    </div>
+    <div class="sett-actions">
+      <button class="btn-connect" onclick="connect()">اتصال</button>
+      <button class="btn-disconnect" onclick="disconnect()">قطع الاتصال</button>
+    </div>
+    <div class="sett-hint">
+      Port 8884 (WSS) يُستخدم تلقائياً — تأكد من تفعيل WebSocket في إعدادات HiveMQ Cloud.<br>
+      الإعدادات تُحفظ في المتصفح تلقائياً.
+    </div>
+  </div>
+
+  <!-- Status chips -->
+  <div id="statusBar" class="status-bar hidden">
+    <div class="stat-chip">MQTT: <strong id="stMqtt">-</strong></div>
+    <div class="stat-chip" id="stEspWrap">ESP32: <strong id="stEsp">-</strong></div>
+    <div class="stat-chip" id="stIpWrap" class="hidden">IP: <strong id="stIp" style="font-family:Consolas,monospace;">-</strong></div>
+  </div>
+
+  <!-- Current sensor -->
+  <div id="currBar" class="curr-bar hidden" style="margin-bottom:12px;">
+    <div>
+      <div class="amp-val" id="ampVal">0.000</div>
+      <div class="amp-lbl">أمبير (RMS)</div>
+    </div>
+    <div id="currTags" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+
+  <!-- Relay section -->
+  <div id="relaySection" class="card hidden">
+    <div class="section-hdr">
+      <h2>القواطع</h2>
+      <div class="actions">
+        <button class="pr" onclick="pubAll(1)">تشغيل الكل</button>
+        <button class="dn" onclick="pubAll(0)">إطفاء الكل</button>
+      </div>
+    </div>
+    <div id="relayGrid" class="relay-grid"></div>
+  </div>
+
+</div>
+
+<footer class="page-footer">Powered by <strong>AbuCode</strong> | أبو الكود — MQTT Remote Interface</footer>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const RELAY_COUNT = 16;
+let client = null;
+let states   = Array(RELAY_COUNT).fill(false);
+let labels   = JSON.parse(localStorage.getItem('kio_labels') || 'null')
+               || Array.from({length:RELAY_COUNT}, (_,i) => 'قاطع '+(i+1));
+let baseTopic = 'relay16/ESP32-Relay16';
+
+// ── Credential helpers ─────────────────────────────────────────────────────
+function saveCreds() {
+  localStorage.setItem('kio_broker', document.getElementById('cfgBroker').value.trim());
+  localStorage.setItem('kio_user',   document.getElementById('cfgUser').value.trim());
+  localStorage.setItem('kio_pass',   document.getElementById('cfgPass').value);
+  localStorage.setItem('kio_topic',  document.getElementById('cfgTopic').value.trim() || baseTopic);
+}
+function loadCreds() {
+  document.getElementById('cfgBroker').value = localStorage.getItem('kio_broker') || '';
+  document.getElementById('cfgUser').value   = localStorage.getItem('kio_user')   || '';
+  document.getElementById('cfgPass').value   = localStorage.getItem('kio_pass')   || '';
+  document.getElementById('cfgTopic').value  = localStorage.getItem('kio_topic')  || baseTopic;
+}
+function toggleSettings() {
+  const p = document.getElementById('settPanel');
+  p.classList.toggle('hidden');
+}
+
+// ── Connection ─────────────────────────────────────────────────────────────
+function connect() {
+  saveCreds();
+  const broker = localStorage.getItem('kio_broker');
+  const user   = localStorage.getItem('kio_user');
+  const pass   = localStorage.getItem('kio_pass');
+  baseTopic    = localStorage.getItem('kio_topic') || baseTopic;
+
+  if (!broker) { alert('أدخل Broker URL'); return; }
+
+  if (client) { try { client.end(true); } catch(_){} }
+
+  setPill('جارٍ الاتصال...', '');
+
+  client = mqtt.connect('wss://' + broker + ':8884/mqtt', {
+    username: user,
+    password: pass,
+    clientId: 'kasshaiot_web_' + Math.random().toString(16).substr(2,8),
+    clean: true,
+    reconnectPeriod: 5000,
+    connectTimeout: 10000,
+  });
+
+  client.on('connect', () => {
+    setPill('متصل', 'ok');
+    document.getElementById('settPanel').classList.add('hidden');
+    document.getElementById('statusBar').classList.remove('hidden');
+    document.getElementById('relaySection').classList.remove('hidden');
+    setStatus('متصل', '#2D6A4F');
+    client.subscribe(baseTopic + '/state');
+    client.subscribe(baseTopic + '/current');
+    client.subscribe(baseTopic + '/online');
+  });
+
+  client.on('reconnect', () => setPill('إعادة اتصال...', ''));
+  client.on('offline',   () => { setPill('غير متصل', 'err'); setStatus('غير متصل', '#B0272B'); });
+  client.on('error', e  => { console.error(e); setPill('خطأ في الاتصال', 'err'); });
+
+  client.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    if (topic === baseTopic + '/state')   onState(msg);
+    if (topic === baseTopic + '/current') onCurrent(msg);
+    if (topic === baseTopic + '/online')  setEsp(msg === '1');
+  });
+}
+
+function disconnect() {
+  if (client) { client.end(true); client = null; }
+  setPill('⚙ إعداد الاتصال', '');
+  document.getElementById('statusBar').classList.add('hidden');
+  document.getElementById('relaySection').classList.add('hidden');
+  document.getElementById('currBar').classList.add('hidden');
+  document.getElementById('settPanel').classList.remove('hidden');
+}
+
+// ── Message handlers ───────────────────────────────────────────────────────
+function onState(msg) {
+  try {
+    const d = JSON.parse(msg);
+    if (d.relays) {
+      states = d.relays.map(v => v === 1 || v === true);
+      renderGrid();
+    }
+    if (d.ip) document.getElementById('stIp').textContent = d.ip;
+  } catch(e) { console.error('state parse', e); }
+}
+
+function onCurrent(msg) {
+  try {
+    const d = JSON.parse(msg);
+    if (!d.sensors || !d.sensors.length) return;
+    document.getElementById('currBar').classList.remove('hidden');
+    document.getElementById('ampVal').textContent = d.sensors[0].rms_a.toFixed(3);
+    document.getElementById('currTags').innerHTML =
+      d.sensors.map((s,i) => `<span style="background:var(--cream);border:1px solid var(--sand);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--stone);">S${i}: ${s.rms_a.toFixed(3)} A</span>`).join('');
+  } catch(e) {}
+}
+
+// ── Publish helpers ────────────────────────────────────────────────────────
+function pub(topic, payload) {
+  if (!client || !client.connected) { alert('غير متصل بـ MQTT'); return; }
+  client.publish(topic, String(payload));
+}
+function pubRelay(ch, val) { pub(baseTopic + '/relay/' + ch + '/set', val ? '1' : '0'); }
+function pubAll(val)       { pub(baseTopic + '/relay/all/set', val ? '1' : '0'); }
+function pubPulse(ch, ms)  { pub(baseTopic + '/relay/' + ch + '/pulse', String(ms)); }
+
+function toggleRelay(ch) {
+  const newState = !states[ch];
+  states[ch] = newState;
+  renderGrid();
+  pubRelay(ch, newState);
+}
+
+function pulseRelay(ch) {
+  const msStr = prompt('مدة النبضة (ميلي ثانية، 100-60000):', '3000');
+  if (!msStr) return;
+  const ms = parseInt(msStr, 10);
+  if (isNaN(ms) || ms < 100 || ms > 60000) { alert('قيمة غير صحيحة'); return; }
+  pubPulse(ch, ms);
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function esc(v) {
+  return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderGrid() {
+  const grid = document.getElementById('relayGrid');
+  grid.innerHTML = states.map((on, i) => `
+    <div class="relay-card ${on?'on':''}">
+      <div class="relay-top">
+        <div>
+          <div class="relay-name">${esc(labels[i])}</div>
+          <div class="relay-ch">Ch ${i+1}</div>
+        </div>
+        <span class="badge ${on?'on':'off'}">${on?'مشغل':'مطفأ'}</span>
+      </div>
+      <div class="relay-bottom">
+        <button class="pulse-ico" onclick="pulseRelay(${i})" title="نبضة مؤقتة">&#x26A1;</button>
+        <label class="tog" title="${on?'إطفاء':'تشغيل'}">
+          <input type="checkbox" ${on?'checked':''} onchange="toggleRelay(${i})">
+          <span class="tog-track"></span>
+          <span class="tog-thumb"></span>
+        </label>
+      </div>
+    </div>`).join('');
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function setPill(text, cls) {
+  const p = document.getElementById('connPill');
+  p.textContent = text;
+  p.className = 'conn-pill' + (cls ? ' ' + cls : '');
+}
+function setStatus(text, color) {
+  const el = document.getElementById('stMqtt');
+  el.textContent = text;
+  el.style.color = color;
+}
+function setEsp(online) {
+  const el = document.getElementById('stEsp');
+  el.textContent = online ? 'متصل' : 'غير متصل';
+  el.style.color = online ? '#2D6A4F' : '#B0272B';
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+loadCreds();
+renderGrid();
+
+// Auto-connect if credentials already saved
+if (localStorage.getItem('kio_broker')) {
+  connect();
+}
+</script>
+</body>
+</html>
