@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>KasshaIOT Remote</title>
+<title>KasshaIOT</title>
 <script src="https://unpkg.com/mqtt@4/dist/mqtt.min.js"></script>
 <style>
 :root{
@@ -13,82 +13,124 @@
   --r:14px;--rs:10px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body{background:var(--paper);color:var(--ink);font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;}
-a{color:inherit;text-decoration:none;}
+html,body{background:var(--paper);color:var(--ink);font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;font-size:15px;}
 
-.topbar{background:var(--ink);padding:0 14px;display:flex;align-items:center;justify-content:space-between;height:58px;gap:10px;background-image:radial-gradient(rgba(201,162,76,.07) 1px,transparent 1px);background-size:22px 22px;}
-.brand{display:flex;align-items:center;gap:9px;}
-.brand-name{font-size:20px;font-weight:700;color:var(--paper);}
+/* ── Topbar ── */
+.topbar{background:var(--ink);padding:0 14px;display:flex;align-items:center;justify-content:space-between;height:60px;gap:8px;background-image:radial-gradient(rgba(201,162,76,.07) 1px,transparent 1px);background-size:22px 22px;position:sticky;top:0;z-index:100;}
+.brand{display:flex;align-items:center;gap:9px;flex-shrink:0;}
+.brand-name{font-size:19px;font-weight:700;color:var(--paper);}
 .brand-sub{font-size:11px;color:var(--sand);margin-top:1px;}
-.conn-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 11px;font-size:12px;border:1.5px solid rgba(194,183,163,.3);color:var(--sand);cursor:pointer;}
+.topnav{display:flex;gap:2px;}
+.nav-btn{background:transparent;border:none;color:var(--sand);font-size:24px;cursor:pointer;padding:6px 10px;border-radius:10px;min-height:44px;min-width:44px;transition:background .15s,color .15s;display:flex;align-items:center;justify-content:center;}
+.nav-btn.active{background:rgba(201,162,76,.2);color:var(--gold);}
+.conn-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-size:12px;border:1.5px solid rgba(194,183,163,.3);color:var(--sand);white-space:nowrap;flex-shrink:0;}
 .conn-pill::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--sand);flex-shrink:0;}
 .conn-pill.ok{border-color:rgba(45,106,79,.5);color:#6fcf97;}
 .conn-pill.ok::before{background:#6fcf97;}
 .conn-pill.err{border-color:rgba(176,39,43,.5);color:#f28b8b;}
 .conn-pill.err::before{background:#f28b8b;}
 
-.wrap{max-width:900px;margin:0 auto;padding:14px 10px;}
-.card{background:#fff;border:1px solid var(--cream);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:0 1px 10px rgba(20,17,14,.05);}
+/* ── Layout ── */
+.pg{display:block;}
+.pg.hidden{display:none!important;}
+.wrap{max-width:900px;margin:0 auto;padding:14px 10px 30px;}
 
-/* Settings panel */
-.sett-panel{background:var(--ink);border:1px solid rgba(201,162,76,.2);border-radius:var(--r);padding:16px;margin-bottom:12px;}
-.sett-panel h2{color:var(--gold);font-size:16px;font-weight:600;margin-bottom:14px;}
-.sett-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:12px;}
-.sett-panel label{color:var(--sand);font-size:13px;display:block;margin-bottom:4px;}
-.sett-panel input{width:100%;padding:10px 12px;border-radius:var(--rs);border:1px solid rgba(194,183,163,.3);background:rgba(255,255,255,.07);color:var(--paper);font-size:16px;font-family:inherit;}
-.sett-panel input:focus{outline:none;border-color:rgba(201,162,76,.6);}
-.sett-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;}
-.btn-connect{background:var(--gold);color:var(--ink);border:0;border-radius:var(--rs);padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;min-height:44px;}
-.btn-disconnect{background:transparent;color:var(--sand);border:1px solid rgba(194,183,163,.3);border-radius:var(--rs);padding:10px 16px;font-size:13px;cursor:pointer;min-height:44px;}
-.sett-hint{color:var(--stone);font-size:11px;margin-top:10px;line-height:1.6;}
+/* ── Card / Accordion ── */
+.card{background:#fff;border:1px solid var(--cream);border-radius:var(--r);margin-bottom:12px;box-shadow:0 1px 10px rgba(20,17,14,.05);overflow:hidden;}
+details.card>summary{padding:16px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;list-style:none;user-select:none;}
+details.card>summary::after{content:'+';font-size:18px;color:var(--stone);margin-right:4px;}
+details.card[open]>summary::after{content:'−';}
+.acc-body{padding:0 16px 18px;}
 
-/* Status bar */
+/* ── Status bar ── */
 .status-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
-.stat-chip{background:var(--cream);border:1px solid var(--sand);border-radius:999px;padding:5px 12px;font-size:12px;color:var(--stone);display:inline-flex;align-items:center;gap:5px;}
+.stat-chip{background:var(--cream);border:1px solid var(--sand);border-radius:999px;padding:7px 14px;font-size:13px;color:var(--stone);display:inline-flex;align-items:center;gap:6px;}
 .stat-chip strong{color:var(--ink);}
 
-/* Relay grid */
-.section-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
-.section-hdr h2{font-size:16px;font-weight:600;}
-.section-hdr h2::after{content:'';display:block;width:20px;height:2px;background:var(--gold);border-radius:2px;margin-top:4px;}
+/* ── Current sensor ── */
+.curr-bar{background:var(--paper);border:1.5px solid var(--gold-lt);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+.amp-val{font-family:Consolas,'Courier New',monospace;font-size:30px;font-weight:700;color:var(--crimson);}
+.amp-lbl{color:var(--stone);font-size:12px;margin-top:2px;}
+
+/* ── Section header ── */
+.section-hdr{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.section-hdr h2{font-size:17px;font-weight:700;}
+.section-hdr h2::after{content:'';display:block;width:24px;height:2px;background:var(--gold);border-radius:2px;margin-top:5px;}
+
+/* ── Relay grid ── */
 .relay-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;}
-.relay-card{background:#fff;border:1.5px solid var(--cream);border-radius:var(--r);padding:13px;transition:border-color .2s;}
-.relay-card.on{border-color:var(--gold);box-shadow:0 2px 8px rgba(201,162,76,.14);}
-.relay-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:11px;}
-.relay-name{font-size:13px;font-weight:600;word-break:break-word;line-height:1.3;}
-.relay-ch{color:var(--stone);font-size:10px;margin-top:2px;}
+.relay-card{background:#fff;border:1.5px solid var(--cream);border-radius:var(--r);padding:14px;transition:border-color .2s,box-shadow .2s;}
+.relay-card.on{border-color:var(--gold);box-shadow:0 2px 8px rgba(201,162,76,.15);}
+.relay-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:12px;}
+.relay-name{font-size:14px;font-weight:600;word-break:break-word;line-height:1.3;}
+.relay-ch{color:var(--stone);font-size:11px;margin-top:3px;}
 .relay-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;}
-.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;}
+.badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;}
 .badge.on{background:var(--ok-bg);color:var(--ok);}
 .badge.off{background:var(--cream);color:var(--stone);}
-.badge.pulse{background:var(--warn-bg);color:var(--warn-clr);}
-.pulse-ico{background:var(--gold-lt);color:var(--warn-clr);border:1px solid var(--gold);border-radius:8px;padding:7px 12px;font-size:17px;cursor:pointer;line-height:1;min-height:38px;display:inline-flex;align-items:center;}
-.tog{position:relative;display:inline-block;width:50px;height:27px;cursor:pointer;flex-shrink:0;}
+
+/* ── Toggle switch ── */
+.tog{position:relative;display:inline-block;width:52px;height:28px;cursor:pointer;flex-shrink:0;}
 .tog input{position:absolute;opacity:0;width:0;height:0;}
 .tog-track{position:absolute;inset:0;background:var(--cream);border:1.5px solid var(--sand);border-radius:999px;transition:.2s;}
 .tog input:checked~.tog-track{background:var(--crimson);border-color:var(--crimson);}
-.tog-thumb{position:absolute;top:4px;left:4px;width:19px;height:19px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:transform .2s;pointer-events:none;}
-.tog input:checked~.tog-thumb{transform:translateX(23px);}
+.tog-thumb{position:absolute;top:4px;left:4px;width:20px;height:20px;background:#fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.2);transition:transform .2s;pointer-events:none;}
+.tog input:checked~.tog-thumb{transform:translateX(24px);}
 
-/* Bulk actions */
+/* ── Pulse button ── */
+.pulse-ico{background:var(--gold-lt);color:var(--warn-clr);border:1px solid var(--gold);border-radius:8px;padding:7px 13px;font-size:18px;cursor:pointer;line-height:1;min-height:40px;display:inline-flex;align-items:center;}
+
+/* ── Buttons ── */
 .actions{display:flex;flex-wrap:wrap;gap:8px;}
-button.pr{background:var(--crimson);color:#fff;border:0;border-radius:var(--rs);padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
-button.dn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
-button.gh{background:var(--cream);color:var(--ink);border:1px solid var(--sand);border-radius:var(--rs);padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
+button.pr{background:var(--crimson);color:#fff;border:0;border-radius:var(--rs);padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
+button.dn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
+button.gh{background:var(--cream);color:var(--ink);border:1px solid var(--sand);border-radius:var(--rs);padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
+button.ok-btn{background:var(--ok);color:#fff;border:0;border-radius:var(--rs);padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
+button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;font-family:inherit;}
 
-/* Current sensor */
-.curr-bar{background:var(--paper);border:1.5px solid var(--gold-lt);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-.amp-val{font-family:Consolas,'Courier New',monospace;font-size:28px;font-weight:700;color:var(--crimson);}
-.amp-lbl{color:var(--stone);font-size:12px;margin-top:2px;}
+/* ── Labels grid ── */
+.labels-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;}
+.lbl-item{display:flex;flex-direction:column;gap:5px;}
+.lbl-item span{font-size:12px;color:var(--stone);}
+.lbl-item input{padding:11px 12px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:15px;font-family:inherit;outline:none;width:100%;}
+.lbl-item input:focus{border-color:var(--crimson);}
 
-.page-footer{background:var(--ink);color:var(--stone);text-align:center;padding:14px;font-size:12px;margin-top:4px;}
+/* ── Schedule ── */
+.sched-slot{border:1.5px solid var(--cream);border-radius:var(--r);margin-bottom:10px;overflow:hidden;}
+.sched-hdr{background:var(--cream);padding:11px 14px;display:flex;align-items:center;gap:10px;}
+.sched-hdr .sched-title{flex:1;font-size:14px;font-weight:600;}
+.del-btn{background:transparent;border:none;color:var(--stone);font-size:18px;cursor:pointer;padding:4px 8px;min-height:36px;line-height:1;}
+.sched-body{padding:12px 14px;}
+.sched-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:12px;}
+.mini-lbl{font-size:12px;color:var(--stone);display:block;margin-bottom:5px;}
+.mini-sel{width:100%;padding:10px 10px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:14px;font-family:inherit;outline:none;background:#fff;}
+.mini-sel:focus{border-color:var(--crimson);}
+.day-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+.day-btn{background:var(--cream);border:1.5px solid var(--sand);border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer;min-height:40px;font-family:inherit;transition:background .15s,color .15s;}
+.day-btn.active{background:var(--crimson);border-color:var(--crimson);color:#fff;}
+
+/* ── Timezone select ── */
+.full-sel{width:100%;padding:13px 14px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:15px;font-family:inherit;background:#fff;outline:none;}
+.full-sel:focus{border-color:var(--crimson);}
+
+/* ── Settings inputs ── */
+.sett-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:14px;}
+.sett-grid>div>label{font-size:13px;color:var(--stone);display:block;margin-bottom:5px;}
+.sett-grid input{width:100%;padding:12px 12px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:15px;font-family:inherit;outline:none;background:#fff;}
+.sett-grid input:focus{border-color:var(--crimson);}
+
+/* ── Misc ── */
+.foot-note{font-size:13px;margin-top:10px;min-height:20px;line-height:1.5;}
+.sep{height:1px;background:var(--cream);margin:14px 0;}
+.page-footer{background:var(--ink);color:var(--stone);text-align:center;padding:14px;font-size:12px;}
 .page-footer strong{color:var(--gold);}
 .hidden{display:none!important;}
 
 @media(max-width:480px){
-  .topbar{height:52px;padding:0 10px;}
-  .brand-name{font-size:17px;}
-  .sett-grid{grid-template-columns:1fr;}
+  .topbar{height:54px;padding:0 10px;}
+  .brand-name{font-size:16px;}
+  .sched-row{grid-template-columns:repeat(2,1fr);}
+  .day-btn{padding:8px 7px;font-size:12px;}
 }
 </style>
 </head>
@@ -106,160 +148,211 @@ button.gh{background:var(--cream);color:var(--ink);border:1px solid var(--sand);
     </svg>
     <div>
       <div class="brand-name">KasshaIOT</div>
-      <div class="brand-sub">تحكم عن بعد — MQTT</div>
+      <div class="brand-sub">تحكم عن بعد</div>
     </div>
   </div>
-  <div id="connPill" class="conn-pill" onclick="toggleSettings()">⚙ إعداد الاتصال</div>
+  <nav class="topnav">
+    <button id="navHome" class="nav-btn active" onclick="showPage('home')" title="القواطع">⌂</button>
+    <button id="navSett" class="nav-btn" onclick="showPage('settings')" title="الإعدادات">⚙</button>
+  </nav>
+  <div id="connPill" class="conn-pill">جارٍ...</div>
 </header>
 
-<div class="wrap">
+<!-- ═══════════════════ HOME PAGE ═══════════════════ -->
+<div id="pgHome" class="pg">
+  <div class="wrap">
 
-  <!-- Connection settings -->
-  <div id="settPanel" class="sett-panel">
-    <h2>إعدادات الاتصال بـ HiveMQ Cloud</h2>
-    <div class="sett-grid">
+    <div class="status-bar">
+      <div class="stat-chip">ESP32: <strong id="stEsp" style="color:var(--stone);">-</strong></div>
+      <div class="stat-chip">IP: <strong id="stIp" style="font-family:Consolas,monospace;font-size:12px;">-</strong></div>
+    </div>
+
+    <div id="currBar" class="curr-bar hidden">
       <div>
-        <label>Broker URL</label>
-        <input id="cfgBroker" placeholder="abc.hivemq.cloud" autocomplete="off" autocorrect="off" spellcheck="false">
+        <div class="amp-val" id="ampVal">0.000</div>
+        <div class="amp-lbl">أمبير (RMS)</div>
       </div>
-      <div>
-        <label>Username</label>
-        <input id="cfgUser" placeholder="اسم المستخدم" autocomplete="off">
-      </div>
-      <div>
-        <label>Password</label>
-        <input id="cfgPass" type="password" placeholder="كلمة المرور">
-      </div>
-      <div>
-        <label>Base Topic</label>
-        <input id="cfgTopic" placeholder="relay16/ESP32-Relay16" value="relay16/ESP32-Relay16">
-      </div>
+      <div id="currTags" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
     </div>
-    <div class="sett-actions">
-      <button class="btn-connect" onclick="connect()">اتصال</button>
-      <button class="btn-disconnect" onclick="disconnect()">قطع الاتصال</button>
-    </div>
-    <div class="sett-hint">
-      Port 8884 (WSS) يُستخدم تلقائياً — تأكد من تفعيل WebSocket في إعدادات HiveMQ Cloud.<br>
-      الإعدادات تُحفظ في المتصفح تلقائياً.
-    </div>
-  </div>
 
-  <!-- Status chips -->
-  <div id="statusBar" class="status-bar hidden">
-    <div class="stat-chip">MQTT: <strong id="stMqtt">-</strong></div>
-    <div class="stat-chip" id="stEspWrap">ESP32: <strong id="stEsp">-</strong></div>
-    <div class="stat-chip" id="stIpWrap" class="hidden">IP: <strong id="stIp" style="font-family:Consolas,monospace;">-</strong></div>
-  </div>
-
-  <!-- Current sensor -->
-  <div id="currBar" class="curr-bar hidden" style="margin-bottom:12px;">
-    <div>
-      <div class="amp-val" id="ampVal">0.000</div>
-      <div class="amp-lbl">أمبير (RMS)</div>
-    </div>
-    <div id="currTags" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
-  </div>
-
-  <!-- Relay section -->
-  <div id="relaySection" class="card hidden">
-    <div class="section-hdr">
-      <h2>القواطع</h2>
-      <div class="actions">
-        <button class="pr" onclick="pubAll(1)">تشغيل الكل</button>
-        <button class="dn" onclick="pubAll(0)">إطفاء الكل</button>
+    <div class="card" style="padding:16px;">
+      <div class="section-hdr">
+        <h2>القواطع</h2>
+        <div class="actions">
+          <button class="pr" onclick="pubAll(1)">تشغيل الكل</button>
+          <button class="dn" onclick="pubAll(0)">إطفاء الكل</button>
+        </div>
       </div>
+      <div id="relayGrid" class="relay-grid"></div>
     </div>
-    <div id="relayGrid" class="relay-grid"></div>
-  </div>
 
+  </div>
 </div>
 
-<footer class="page-footer">Powered by <strong>AbuCode</strong> | أبو الكود — MQTT Remote Interface</footer>
+<!-- ═══════════════════ SETTINGS PAGE ═══════════════════ -->
+<div id="pgSettings" class="pg hidden">
+  <div class="wrap">
+
+    <!-- Relay Labels -->
+    <details class="card">
+      <summary>أسماء القواطع</summary>
+      <div class="acc-body">
+        <div id="labelsGrid" class="labels-grid"></div>
+        <div class="actions" style="margin-top:14px;">
+          <button class="ok-btn" onclick="saveLabels()">حفظ الأسماء</button>
+        </div>
+        <div id="lblResult" class="foot-note"></div>
+      </div>
+    </details>
+
+    <!-- Schedules -->
+    <details class="card">
+      <summary>المواعيد التلقائية</summary>
+      <div class="acc-body">
+        <div id="schedList"></div>
+        <div class="actions" style="margin-top:6px;">
+          <button class="gh" id="addSchedBtn" onclick="addSchedule()">+ إضافة موعد</button>
+        </div>
+        <div id="schedResult" class="foot-note"></div>
+      </div>
+    </details>
+
+    <!-- Timezone -->
+    <details class="card">
+      <summary>المنطقة الزمنية</summary>
+      <div class="acc-body">
+        <select id="tzSelect" class="full-sel">
+          <option value="10800">GMT+3 — بغداد، الرياض، الكويت، قطر</option>
+          <option value="7200">GMT+2 — بيروت، دمشق، القاهرة</option>
+          <option value="14400">GMT+4 — دبي، أبوظبي، مسقط</option>
+          <option value="3600">GMT+1</option>
+          <option value="0">GMT+0</option>
+          <option value="-3600">GMT-1</option>
+        </select>
+        <div class="actions" style="margin-top:14px;">
+          <button class="ok-btn" onclick="saveTz()">حفظ التوقيت</button>
+        </div>
+        <div id="tzResult" class="foot-note"></div>
+      </div>
+    </details>
+
+    <!-- Reboot -->
+    <details class="card">
+      <summary>إعادة تشغيل الجهاز</summary>
+      <div class="acc-body">
+        <p style="color:var(--stone);font-size:14px;line-height:1.8;margin-bottom:16px;">
+          سيُعيد الجهاز تشغيله. سيستغرق الاتصال بضع ثوانٍ ثم يعود تلقائياً.
+        </p>
+        <button class="warn-btn" onclick="rebootDevice()">⟳ إعادة التشغيل</button>
+        <div id="rebootResult" class="foot-note"></div>
+      </div>
+    </details>
+
+    <!-- Advanced connection -->
+    <details class="card">
+      <summary>إعداد الاتصال (متقدم)</summary>
+      <div class="acc-body">
+        <div class="sett-grid">
+          <div><label>Broker URL</label><input id="cfgBroker" autocomplete="off" autocorrect="off" spellcheck="false" placeholder="xxx.hivemq.cloud"></div>
+          <div><label>Username</label><input id="cfgUser" autocomplete="off"></div>
+          <div><label>Password</label><input id="cfgPass" type="password"></div>
+          <div><label>Base Topic</label><input id="cfgTopic" autocomplete="off"></div>
+        </div>
+        <div class="actions">
+          <button class="ok-btn" onclick="saveConnAndReconnect()">حفظ وإعادة الاتصال</button>
+          <button class="gh" onclick="resetDefaults()">استعادة الافتراضي</button>
+        </div>
+        <div id="connResult" class="foot-note"></div>
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<footer class="page-footer">Powered by <strong>AbuCode</strong> | أبو الكود</footer>
 
 <script>
-// ── State ──────────────────────────────────────────────────────────────────
-const RELAY_COUNT = 16;
-let client = null;
-let states   = Array(RELAY_COUNT).fill(false);
-let labels   = JSON.parse(localStorage.getItem('kio_labels') || 'null')
-               || Array.from({length:RELAY_COUNT}, (_,i) => 'قاطع '+(i+1));
-let baseTopic = 'relay16/ESP32-Relay16';
+// ── Hardcoded defaults ────────────────────────────────────────────────────────
+const DEF_BROKER = '6c7ea3ba2aaa4263aaee0c7064e6c727.s1.eu.hivemq.cloud';
+const DEF_USER   = 'kassha';
+const DEF_PASS   = 'A12345678a';
+const DEF_TOPIC  = 'relay16/ESP32-Relay16';
 
-// ── Credential helpers ─────────────────────────────────────────────────────
-function saveCreds() {
-  localStorage.setItem('kio_broker', document.getElementById('cfgBroker').value.trim());
-  localStorage.setItem('kio_user',   document.getElementById('cfgUser').value.trim());
-  localStorage.setItem('kio_pass',   document.getElementById('cfgPass').value);
-  localStorage.setItem('kio_topic',  document.getElementById('cfgTopic').value.trim() || baseTopic);
+const RELAY_COUNT   = 16;
+const MAX_SCHEDULES = 8;
+const DAYS_AR = ['أحد','إثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+
+// ── App state ─────────────────────────────────────────────────────────────────
+let client     = null;
+let baseTopic  = DEF_TOPIC;
+let states     = Array(RELAY_COUNT).fill(false);
+let labels     = Array.from({length:RELAY_COUNT}, (_, i) => 'قاطع ' + (i + 1));
+let schedData  = {};  // slot → {en,ch,st,hr,mn,dy}
+let shownSlots = [];  // which schedule slots are shown
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function showPage(page) {
+  document.getElementById('pgHome').classList.toggle('hidden', page !== 'home');
+  document.getElementById('pgSettings').classList.toggle('hidden', page !== 'settings');
+  document.getElementById('navHome').classList.toggle('active', page === 'home');
+  document.getElementById('navSett').classList.toggle('active', page === 'settings');
+  if (page === 'settings') renderLabelsGrid();
 }
-function loadCreds() {
-  document.getElementById('cfgBroker').value = localStorage.getItem('kio_broker') || '';
-  document.getElementById('cfgUser').value   = localStorage.getItem('kio_user')   || '';
-  document.getElementById('cfgPass').value   = localStorage.getItem('kio_pass')   || '';
-  document.getElementById('cfgTopic').value  = localStorage.getItem('kio_topic')  || baseTopic;
+
+// ── Credentials ───────────────────────────────────────────────────────────────
+function getCfg() {
+  return {
+    broker: localStorage.getItem('kio_broker') || DEF_BROKER,
+    user:   localStorage.getItem('kio_user')   || DEF_USER,
+    pass:   localStorage.getItem('kio_pass')   || DEF_PASS,
+    topic:  localStorage.getItem('kio_topic')  || DEF_TOPIC,
+  };
 }
-function toggleSettings() {
-  const p = document.getElementById('settPanel');
-  p.classList.toggle('hidden');
-}
 
-// ── Connection ─────────────────────────────────────────────────────────────
-function connect() {
-  saveCreds();
-  const broker = localStorage.getItem('kio_broker');
-  const user   = localStorage.getItem('kio_user');
-  const pass   = localStorage.getItem('kio_pass');
-  baseTopic    = localStorage.getItem('kio_topic') || baseTopic;
-
-  if (!broker) { alert('أدخل Broker URL'); return; }
-
+// ── MQTT Connection ───────────────────────────────────────────────────────────
+function doConnect(cfg) {
+  baseTopic = cfg.topic;
   if (client) { try { client.end(true); } catch(_){} }
-
   setPill('جارٍ الاتصال...', '');
 
-  client = mqtt.connect('wss://' + broker + ':8884/mqtt', {
-    username: user,
-    password: pass,
-    clientId: 'kasshaiot_web_' + Math.random().toString(16).substr(2,8),
+  client = mqtt.connect('wss://' + cfg.broker + ':8884/mqtt', {
+    username: cfg.user,
+    password: cfg.pass,
+    clientId: 'kasshaiot_' + Math.random().toString(16).substr(2, 8),
     clean: true,
-    reconnectPeriod: 5000,
-    connectTimeout: 10000,
+    reconnectPeriod: 6000,
+    connectTimeout: 15000,
   });
 
-  client.on('connect', () => {
-    setPill('متصل', 'ok');
-    document.getElementById('settPanel').classList.add('hidden');
-    document.getElementById('statusBar').classList.remove('hidden');
-    document.getElementById('relaySection').classList.remove('hidden');
-    setStatus('متصل', '#2D6A4F');
-    client.subscribe(baseTopic + '/state');
-    client.subscribe(baseTopic + '/current');
-    client.subscribe(baseTopic + '/online');
-  });
-
+  client.on('connect',   onConnected);
   client.on('reconnect', () => setPill('إعادة اتصال...', ''));
-  client.on('offline',   () => { setPill('غير متصل', 'err'); setStatus('غير متصل', '#B0272B'); });
-  client.on('error', e  => { console.error(e); setPill('خطأ في الاتصال', 'err'); });
-
-  client.on('message', (topic, payload) => {
-    const msg = payload.toString();
-    if (topic === baseTopic + '/state')   onState(msg);
-    if (topic === baseTopic + '/current') onCurrent(msg);
-    if (topic === baseTopic + '/online')  setEsp(msg === '1');
-  });
+  client.on('offline',   () => { setPill('غير متصل', 'err'); setEspStatus(false); });
+  client.on('error',     e  => { console.error(e); setPill('خطأ في الاتصال', 'err'); });
+  client.on('message',   onMessage);
 }
 
-function disconnect() {
-  if (client) { client.end(true); client = null; }
-  setPill('⚙ إعداد الاتصال', '');
-  document.getElementById('statusBar').classList.add('hidden');
-  document.getElementById('relaySection').classList.add('hidden');
-  document.getElementById('currBar').classList.add('hidden');
-  document.getElementById('settPanel').classList.remove('hidden');
+function onConnected() {
+  setPill('متصل', 'ok');
+  client.subscribe(baseTopic + '/state');
+  client.subscribe(baseTopic + '/current');
+  client.subscribe(baseTopic + '/online');
+  client.subscribe(baseTopic + '/labels');
+  client.subscribe(baseTopic + '/schedules');
+  client.subscribe(baseTopic + '/timezone');
 }
 
-// ── Message handlers ───────────────────────────────────────────────────────
+// ── Message handlers ──────────────────────────────────────────────────────────
+function onMessage(topic, payload) {
+  const msg = payload.toString();
+  const b   = baseTopic;
+  if (topic === b + '/state')     { onState(msg);    return; }
+  if (topic === b + '/current')   { onCurrent(msg);  return; }
+  if (topic === b + '/online')    { setEspStatus(msg === '1'); return; }
+  if (topic === b + '/labels')    { onLabels(msg);   return; }
+  if (topic === b + '/schedules') { onSchedules(msg); return; }
+  if (topic === b + '/timezone')  { onTimezone(msg); return; }
+}
+
 function onState(msg) {
   try {
     const d = JSON.parse(msg);
@@ -268,7 +361,7 @@ function onState(msg) {
       renderGrid();
     }
     if (d.ip) document.getElementById('stIp').textContent = d.ip;
-  } catch(e) { console.error('state parse', e); }
+  } catch(e) {}
 }
 
 function onCurrent(msg) {
@@ -276,22 +369,59 @@ function onCurrent(msg) {
     const d = JSON.parse(msg);
     if (!d.sensors || !d.sensors.length) return;
     document.getElementById('currBar').classList.remove('hidden');
-    document.getElementById('ampVal').textContent = d.sensors[0].rms_a.toFixed(3);
-    document.getElementById('currTags').innerHTML =
-      d.sensors.map((s,i) => `<span style="background:var(--cream);border:1px solid var(--sand);border-radius:8px;padding:3px 8px;font-size:12px;color:var(--stone);">S${i}: ${s.rms_a.toFixed(3)} A</span>`).join('');
+    document.getElementById('ampVal').textContent = Number(d.sensors[0]).toFixed(3);
+    document.getElementById('currTags').innerHTML = d.sensors.map((s, i) =>
+      `<span style="background:var(--cream);border:1px solid var(--sand);border-radius:8px;padding:4px 9px;font-size:12px;color:var(--stone);">S${i+1}: ${Number(s).toFixed(3)} A</span>`
+    ).join('');
   } catch(e) {}
 }
 
-// ── Publish helpers ────────────────────────────────────────────────────────
+function onLabels(msg) {
+  try {
+    const d = JSON.parse(msg);
+    for (let i = 0; i < RELAY_COUNT; i++) {
+      if (d[String(i)] !== undefined) labels[i] = d[String(i)];
+    }
+    renderGrid();
+    renderLabelsGrid();
+  } catch(e) {}
+}
+
+function onSchedules(msg) {
+  try {
+    const arr = JSON.parse(msg);
+    arr.forEach(s => {
+      schedData[s.slot] = { en:!!s.en, ch:s.ch, st:!!s.st, hr:s.hr, mn:s.mn, dy:s.dy };
+      if (s.en && !shownSlots.includes(s.slot)) shownSlots.push(s.slot);
+    });
+    shownSlots.sort((a, b) => a - b);
+    renderSchedules();
+  } catch(e) {}
+}
+
+function onTimezone(msg) {
+  const offset = parseInt(msg);
+  if (isNaN(offset)) return;
+  const sel = document.getElementById('tzSelect');
+  let best = 0, bestDiff = Infinity;
+  for (let i = 0; i < sel.options.length; i++) {
+    const diff = Math.abs(parseInt(sel.options[i].value) - offset);
+    if (diff < bestDiff) { bestDiff = diff; best = i; }
+  }
+  sel.selectedIndex = best;
+}
+
+// ── Publish helpers ───────────────────────────────────────────────────────────
 function pub(topic, payload) {
-  if (!client || !client.connected) { alert('غير متصل بـ MQTT'); return; }
+  if (!client || !client.connected) return;
   client.publish(topic, String(payload));
 }
-function pubRelay(ch, val) { pub(baseTopic + '/relay/' + ch + '/set', val ? '1' : '0'); }
-function pubAll(val)       { pub(baseTopic + '/relay/all/set', val ? '1' : '0'); }
-function pubPulse(ch, ms)  { pub(baseTopic + '/relay/' + ch + '/pulse', String(ms)); }
+function pubRelay(ch, val)  { pub(baseTopic + '/relay/' + ch + '/set', val ? '1' : '0'); }
+function pubAll(val)        { pub(baseTopic + '/relay/all/set', val ? '1' : '0'); }
+function pubPulse(ch, ms)   { pub(baseTopic + '/relay/' + ch + '/pulse', String(ms)); }
 
 function toggleRelay(ch) {
+  if (!client || !client.connected) { return; }
   const newState = !states[ch];
   states[ch] = newState;
   renderGrid();
@@ -299,65 +429,226 @@ function toggleRelay(ch) {
 }
 
 function pulseRelay(ch) {
-  const msStr = prompt('مدة النبضة (ميلي ثانية، 100-60000):', '3000');
+  const msStr = prompt('مدة النبضة بالميلي ثانية (100 - 60000):', '3000');
   if (!msStr) return;
   const ms = parseInt(msStr, 10);
   if (isNaN(ms) || ms < 100 || ms > 60000) { alert('قيمة غير صحيحة'); return; }
   pubPulse(ch, ms);
 }
 
-// ── Render ─────────────────────────────────────────────────────────────────
+// ── Labels ────────────────────────────────────────────────────────────────────
+function renderLabelsGrid() {
+  document.getElementById('labelsGrid').innerHTML = labels.map((lbl, i) => `
+    <div class="lbl-item">
+      <span>قاطع ${i + 1}</span>
+      <input type="text" id="lbl${i}" value="${esc(lbl)}" maxlength="32">
+    </div>`).join('');
+}
+
+function saveLabels() {
+  if (!client || !client.connected) { result('lblResult', 'غير متصل بـ MQTT', false); return; }
+  for (let i = 0; i < RELAY_COUNT; i++) {
+    const inp = document.getElementById('lbl' + i);
+    if (!inp) continue;
+    const newLabel = inp.value.trim() || ('قاطع ' + (i + 1));
+    labels[i] = newLabel;
+    pub(baseTopic + '/labels/' + i + '/set', newLabel);
+  }
+  renderGrid();
+  result('lblResult', 'تم حفظ الأسماء وإرسالها للجهاز', true);
+}
+
+// ── Schedules ─────────────────────────────────────────────────────────────────
+function renderSchedules() {
+  document.getElementById('schedList').innerHTML = shownSlots.map(schedSlotHtml).join('');
+  document.getElementById('addSchedBtn').style.display =
+    shownSlots.length >= MAX_SCHEDULES ? 'none' : '';
+}
+
+function schedSlotHtml(slot) {
+  const s = schedData[slot] || { en:true, ch:0, st:true, hr:8, mn:0, dy:0x7F };
+  const chOpts = Array.from({length:RELAY_COUNT}, (_, i) =>
+    `<option value="${i}" ${s.ch === i ? 'selected' : ''}>${esc(labels[i])}</option>`).join('');
+  const hrOpts = Array.from({length:24}, (_, i) =>
+    `<option value="${i}" ${s.hr === i ? 'selected' : ''}>${String(i).padStart(2,'0')}</option>`).join('');
+  const mnOpts = [0,5,10,15,20,25,30,35,40,45,50,55].map(m =>
+    `<option value="${m}" ${s.mn === m ? 'selected' : ''}>${String(m).padStart(2,'0')}</option>`).join('');
+  const dayBtns = DAYS_AR.map((d, i) =>
+    `<button type="button" class="day-btn ${(s.dy >> i) & 1 ? 'active' : ''}"
+     onclick="toggleDay(${slot},${i})">${d}</button>`).join('');
+
+  return `
+  <div class="sched-slot" id="slot${slot}">
+    <div class="sched-hdr">
+      <label class="tog" title="تفعيل/تعطيل">
+        <input type="checkbox" ${s.en ? 'checked' : ''} onchange="schedData[${slot}].en=this.checked">
+        <span class="tog-track"></span><span class="tog-thumb"></span>
+      </label>
+      <span class="sched-title">موعد ${slot + 1}</span>
+      <button class="del-btn" onclick="removeSchedule(${slot})" title="حذف">✕</button>
+    </div>
+    <div class="sched-body">
+      <div class="sched-row">
+        <div>
+          <span class="mini-lbl">القاطع</span>
+          <select class="mini-sel" onchange="schedData[${slot}].ch=parseInt(this.value)">${chOpts}</select>
+        </div>
+        <div>
+          <span class="mini-lbl">الحالة</span>
+          <select class="mini-sel" onchange="schedData[${slot}].st=this.value==='1'">
+            <option value="1" ${s.st ? 'selected' : ''}>تشغيل</option>
+            <option value="0" ${!s.st ? 'selected' : ''}>إطفاء</option>
+          </select>
+        </div>
+        <div>
+          <span class="mini-lbl">الساعة</span>
+          <select class="mini-sel" onchange="schedData[${slot}].hr=parseInt(this.value)">${hrOpts}</select>
+        </div>
+        <div>
+          <span class="mini-lbl">الدقيقة</span>
+          <select class="mini-sel" onchange="schedData[${slot}].mn=parseInt(this.value)">${mnOpts}</select>
+        </div>
+      </div>
+      <div class="day-row" id="schDays${slot}">${dayBtns}</div>
+      <div class="actions">
+        <button class="ok-btn" style="padding:9px 16px;font-size:13px;" onclick="saveSchedule(${slot})">حفظ هذا الموعد</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleDay(slot, dayIdx) {
+  if (!schedData[slot]) schedData[slot] = {en:true,ch:0,st:true,hr:8,mn:0,dy:0x7F};
+  schedData[slot].dy ^= (1 << dayIdx);
+  const row = document.getElementById('schDays' + slot);
+  if (row) row.querySelectorAll('.day-btn').forEach((btn, i) =>
+    btn.classList.toggle('active', !!((schedData[slot].dy >> i) & 1)));
+}
+
+function addSchedule() {
+  for (let i = 0; i < MAX_SCHEDULES; i++) {
+    if (!shownSlots.includes(i)) {
+      if (!schedData[i]) schedData[i] = {en:true, ch:0, st:true, hr:8, mn:0, dy:0x7F};
+      shownSlots.push(i);
+      shownSlots.sort((a, b) => a - b);
+      renderSchedules();
+      return;
+    }
+  }
+}
+
+function removeSchedule(slot) {
+  shownSlots = shownSlots.filter(s => s !== slot);
+  if (!schedData[slot]) schedData[slot] = {en:false,ch:0,st:true,hr:0,mn:0,dy:0};
+  schedData[slot].en = false;
+  const s = schedData[slot];
+  pub(baseTopic + '/schedule/' + slot + '/set',
+      `${0},${s.ch},${s.st?1:0},${s.hr},${s.mn},${s.dy}`);
+  renderSchedules();
+}
+
+function saveSchedule(slot) {
+  if (!client || !client.connected) { result('schedResult', 'غير متصل', false); return; }
+  const s = schedData[slot];
+  if (!s) return;
+  pub(baseTopic + '/schedule/' + slot + '/set',
+      `${s.en?1:0},${s.ch},${s.st?1:0},${s.hr},${s.mn},${s.dy}`);
+  result('schedResult', `✓ تم حفظ الموعد ${slot + 1}`, true);
+}
+
+// ── Timezone ──────────────────────────────────────────────────────────────────
+function saveTz() {
+  if (!client || !client.connected) { result('tzResult', 'غير متصل', false); return; }
+  const offset = document.getElementById('tzSelect').value;
+  pub(baseTopic + '/timezone/set', offset);
+  result('tzResult', 'تم حفظ التوقيت وإرساله للجهاز', true);
+}
+
+// ── Reboot ────────────────────────────────────────────────────────────────────
+function rebootDevice() {
+  if (!client || !client.connected) { result('rebootResult', 'غير متصل', false); return; }
+  if (!confirm('هل تريد إعادة تشغيل الجهاز؟')) return;
+  pub(baseTopic + '/reboot', '1');
+  result('rebootResult', 'تم إرسال أمر إعادة التشغيل...', true);
+}
+
+// ── Connection settings ───────────────────────────────────────────────────────
+function saveConnAndReconnect() {
+  const broker = document.getElementById('cfgBroker').value.trim();
+  const user   = document.getElementById('cfgUser').value.trim();
+  const pass   = document.getElementById('cfgPass').value;
+  const topic  = document.getElementById('cfgTopic').value.trim() || DEF_TOPIC;
+  if (!broker) { result('connResult', 'أدخل Broker URL', false); return; }
+  localStorage.setItem('kio_broker', broker);
+  localStorage.setItem('kio_user',   user);
+  localStorage.setItem('kio_pass',   pass);
+  localStorage.setItem('kio_topic',  topic);
+  doConnect({broker, user, pass, topic});
+  result('connResult', 'جارٍ الاتصال بالإعدادات الجديدة...', true);
+}
+
+function resetDefaults() {
+  ['kio_broker','kio_user','kio_pass','kio_topic'].forEach(k => localStorage.removeItem(k));
+  document.getElementById('cfgBroker').value = DEF_BROKER;
+  document.getElementById('cfgUser').value   = DEF_USER;
+  document.getElementById('cfgPass').value   = DEF_PASS;
+  document.getElementById('cfgTopic').value  = DEF_TOPIC;
+  doConnect(getCfg());
+  result('connResult', 'تمت استعادة الإعدادات الافتراضية', true);
+}
+
+// ── Render relay grid ─────────────────────────────────────────────────────────
 function esc(v) {
   return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function renderGrid() {
-  const grid = document.getElementById('relayGrid');
-  grid.innerHTML = states.map((on, i) => `
-    <div class="relay-card ${on?'on':''}">
+  document.getElementById('relayGrid').innerHTML = states.map((on, i) => `
+    <div class="relay-card ${on ? 'on' : ''}">
       <div class="relay-top">
         <div>
           <div class="relay-name">${esc(labels[i])}</div>
-          <div class="relay-ch">Ch ${i+1}</div>
+          <div class="relay-ch">Ch ${i + 1}</div>
         </div>
-        <span class="badge ${on?'on':'off'}">${on?'مشغل':'مطفأ'}</span>
+        <span class="badge ${on ? 'on' : 'off'}">${on ? 'مشغل' : 'مطفأ'}</span>
       </div>
       <div class="relay-bottom">
         <button class="pulse-ico" onclick="pulseRelay(${i})" title="نبضة مؤقتة">&#x26A1;</button>
-        <label class="tog" title="${on?'إطفاء':'تشغيل'}">
-          <input type="checkbox" ${on?'checked':''} onchange="toggleRelay(${i})">
-          <span class="tog-track"></span>
-          <span class="tog-thumb"></span>
+        <label class="tog" title="${on ? 'إطفاء' : 'تشغيل'}">
+          <input type="checkbox" ${on ? 'checked' : ''} onchange="toggleRelay(${i})">
+          <span class="tog-track"></span><span class="tog-thumb"></span>
         </label>
       </div>
     </div>`).join('');
 }
 
-// ── UI helpers ─────────────────────────────────────────────────────────────
+// ── UI helpers ────────────────────────────────────────────────────────────────
 function setPill(text, cls) {
   const p = document.getElementById('connPill');
   p.textContent = text;
-  p.className = 'conn-pill' + (cls ? ' ' + cls : '');
+  p.className   = 'conn-pill' + (cls ? ' ' + cls : '');
 }
-function setStatus(text, color) {
-  const el = document.getElementById('stMqtt');
-  el.textContent = text;
-  el.style.color = color;
-}
-function setEsp(online) {
+function setEspStatus(online) {
   const el = document.getElementById('stEsp');
   el.textContent = online ? 'متصل' : 'غير متصل';
   el.style.color = online ? '#2D6A4F' : '#B0272B';
 }
-
-// ── Init ───────────────────────────────────────────────────────────────────
-loadCreds();
-renderGrid();
-
-// Auto-connect if credentials already saved
-if (localStorage.getItem('kio_broker')) {
-  connect();
+function result(elId, msg, ok) {
+  const el = document.getElementById(elId);
+  if (el) { el.textContent = msg; el.style.color = ok ? '#2D6A4F' : '#B0272B'; }
 }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(function init() {
+  const cfg = getCfg();
+  document.getElementById('cfgBroker').value = cfg.broker;
+  document.getElementById('cfgUser').value   = cfg.user;
+  document.getElementById('cfgPass').value   = cfg.pass;
+  document.getElementById('cfgTopic').value  = cfg.topic;
+  renderGrid();
+  renderSchedules();
+  doConnect(cfg);
+})();
 </script>
 </body>
 </html>
