@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>KasshaIOT</title>
 <script src="https://unpkg.com/mqtt@4/dist/mqtt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
 :root{
   --paper:#FBF7EF;--cream:#ECE3D2;--sand:#C2B7A3;--stone:#6E665B;
@@ -152,7 +153,6 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 <div id="setupOverlay" class="setup-overlay hidden">
   <div class="setup-box">
     <h1>إعداد الاتصال</h1>
-    <p>أدخل بيانات HiveMQ مرة واحدة. ستُحفظ على جهازك ولن تظهر للآخرين.</p>
     <div class="setup-field">
       <label>Broker URL</label>
       <input id="setupBroker" type="text" placeholder="xxx.hivemq.cloud" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="url">
@@ -301,6 +301,16 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
           <button class="warn-btn" onclick="clearCredentials()">حذف البيانات</button>
         </div>
         <div id="connResult" class="foot-note"></div>
+        <div class="sep"></div>
+        <button class="gh" onclick="generateSetupLink()">&#x1F517; توليد رابط الإعداد</button>
+        <div id="setupLinkBox" class="hidden" style="margin-top:14px;">
+          <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
+            <input id="setupLinkUrl" type="text" readonly style="flex:1;padding:10px 12px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:12px;font-family:Consolas,monospace;background:var(--paper);outline:none;direction:ltr;text-align:left;">
+            <button class="gh" onclick="copySetupLink()" style="flex-shrink:0;">نسخ</button>
+          </div>
+          <canvas id="qrCanvas" style="display:block;margin:0 auto;border-radius:10px;border:4px solid var(--cream);"></canvas>
+        </div>
+        <div id="linkResult" class="foot-note"></div>
       </div>
     </details>
 
@@ -341,6 +351,40 @@ function getCfg() {
     pass:  localStorage.getItem('kio_pass')  || '',
     topic: localStorage.getItem('kio_topic') || 'relay16/ESP32-Relay16',
   };
+}
+
+function parseHashCredentials() {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#K=')) return false;
+  try {
+    const cfg = JSON.parse(atob(hash.substring(3)));
+    if (!cfg.b) return false;
+    localStorage.setItem('kio_broker', cfg.b);
+    localStorage.setItem('kio_user',   cfg.u || '');
+    localStorage.setItem('kio_pass',   cfg.p || '');
+    localStorage.setItem('kio_topic',  cfg.t || 'relay16/ESP32-Relay16');
+    history.replaceState(null, '', window.location.pathname);
+    return true;
+  } catch(e) { return false; }
+}
+
+function generateSetupLink() {
+  const cfg = getCfg();
+  if (!cfg) { result('linkResult', 'احفظ البيانات أولاً ثم ولّد الرابط', false); return; }
+  const encoded = btoa(JSON.stringify({b:cfg.broker, u:cfg.user, p:cfg.pass, t:cfg.topic}));
+  const url = location.origin + location.pathname + '#K=' + encoded;
+  document.getElementById('setupLinkUrl').value = url;
+  document.getElementById('setupLinkBox').classList.remove('hidden');
+  QRCode.toCanvas(document.getElementById('qrCanvas'), url, {width: 220, margin: 2, color:{dark:'#14110E',light:'#FBF7EF'}});
+  result('linkResult', '', true);
+}
+
+function copySetupLink() {
+  const url = document.getElementById('setupLinkUrl').value;
+  navigator.clipboard.writeText(url).then(
+    () => result('linkResult', '✓ تم نسخ الرابط — أرسله على واتساب أو حوّله لـ QR', true),
+    () => result('linkResult', 'انسخ الرابط يدوياً من الحقل', false)
+  );
 }
 
 function saveSetup() {
@@ -689,6 +733,7 @@ function result(elId, msg, ok) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function init() {
+  parseHashCredentials();
   renderGrid();
   renderSchedules();
   const cfg = getCfg();
