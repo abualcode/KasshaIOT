@@ -250,6 +250,7 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
         <div id="schedList"></div>
         <div class="actions" style="margin-top:6px;">
           <button class="gh" id="addSchedBtn" onclick="addSchedule()">+ إضافة موعد</button>
+          <button class="ok-btn" onclick="saveAllSchedules()">حفظ المواعيد</button>
         </div>
         <div id="schedResult" class="foot-note"></div>
       </div>
@@ -308,7 +309,7 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
             <input id="setupLinkUrl" type="text" readonly style="flex:1;padding:10px 12px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:12px;font-family:Consolas,monospace;background:var(--paper);outline:none;direction:ltr;text-align:left;">
             <button class="gh" onclick="copySetupLink()" style="flex-shrink:0;">نسخ</button>
           </div>
-          <canvas id="qrCanvas" style="display:block;margin:0 auto;border-radius:10px;border:4px solid var(--cream);"></canvas>
+          <img id="qrImg" style="display:block;margin:0 auto;border-radius:10px;border:4px solid var(--cream);width:220px;height:220px;" alt="QR Code">
         </div>
         <div id="linkResult" class="foot-note"></div>
       </div>
@@ -322,7 +323,15 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 <script>
 const RELAY_COUNT   = 16;
 const MAX_SCHEDULES = 8;
-const DAYS_AR = ['أحد','إثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+const DAYS_SY = [
+  {label:'سبت',    bit:6},
+  {label:'أحد',    bit:0},
+  {label:'إثنين',  bit:1},
+  {label:'ثلاثاء', bit:2},
+  {label:'أربعاء', bit:3},
+  {label:'خميس',   bit:4},
+  {label:'جمعة',   bit:5},
+];
 
 // ── App state ─────────────────────────────────────────────────────────────────
 let client     = null;
@@ -331,6 +340,18 @@ let states     = Array(RELAY_COUNT).fill(false);
 let labels     = Array.from({length:RELAY_COUNT}, (_, i) => 'قاطع ' + (i + 1));
 let schedData  = {};  // slot → {en,ch,st,hr,mn,dy}
 let shownSlots = [];  // which schedule slots are shown
+
+function hr24to12(h) {
+  if (h === 0)  return {h12:12, ampm:'ص'};
+  if (h < 12)   return {h12:h,  ampm:'ص'};
+  if (h === 12) return {h12:12, ampm:'م'};
+  return {h12:h-12, ampm:'م'};
+}
+function hr12to24(h12, ampm) {
+  h12 = parseInt(h12);
+  if (ampm === 'ص') return h12 === 12 ? 0 : h12;
+  return h12 === 12 ? 12 : h12 + 12;
+}
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 function showPage(page) {
@@ -357,7 +378,8 @@ function parseHashCredentials() {
   const hash = window.location.hash;
   if (!hash.startsWith('#K=')) return false;
   try {
-    const cfg = JSON.parse(atob(hash.substring(3)));
+    const b64 = hash.substring(3).replace(/-/g, '+').replace(/_/g, '/');
+    const cfg = JSON.parse(atob(b64));
     if (!cfg.b) return false;
     localStorage.setItem('kio_broker', cfg.b);
     localStorage.setItem('kio_user',   cfg.u || '');
@@ -375,7 +397,9 @@ function generateSetupLink() {
   const url = location.origin + location.pathname + '#K=' + encoded;
   document.getElementById('setupLinkUrl').value = url;
   document.getElementById('setupLinkBox').classList.remove('hidden');
-  QRCode.toCanvas(document.getElementById('qrCanvas'), url, {width: 220, margin: 2, color:{dark:'#14110E',light:'#FBF7EF'}});
+  QRCode.toDataURL(url, {width:220, margin:2, color:{dark:'#14110E',light:'#FBF7EF'}})
+    .then(dataUrl => { document.getElementById('qrImg').src = dataUrl; })
+    .catch(err => console.error('QR error:', err));
   result('linkResult', '', true);
 }
 
@@ -560,16 +584,20 @@ function renderSchedules() {
 }
 
 function schedSlotHtml(slot) {
-  const s = schedData[slot] || { en:true, ch:0, st:true, hr:8, mn:0, dy:0x7F };
+  const s   = schedData[slot] || { en:true, ch:0, st:true, hr:8, mn:0, dy:0x7F };
+  const t12 = hr24to12(s.hr);
+
   const chOpts = Array.from({length:RELAY_COUNT}, (_, i) =>
     `<option value="${i}" ${s.ch === i ? 'selected' : ''}>${esc(labels[i])}</option>`).join('');
-  const hrOpts = Array.from({length:24}, (_, i) =>
-    `<option value="${i}" ${s.hr === i ? 'selected' : ''}>${String(i).padStart(2,'0')}</option>`).join('');
+  const hrOpts = Array.from({length:12}, (_, i) => i + 1).map(h =>
+    `<option value="${h}" ${t12.h12 === h ? 'selected' : ''}>${h}</option>`).join('');
+  const ampmOpts = ['ص','م'].map(a =>
+    `<option value="${a}" ${t12.ampm === a ? 'selected' : ''}>${a}</option>`).join('');
   const mnOpts = [0,5,10,15,20,25,30,35,40,45,50,55].map(m =>
     `<option value="${m}" ${s.mn === m ? 'selected' : ''}>${String(m).padStart(2,'0')}</option>`).join('');
-  const dayBtns = DAYS_AR.map((d, i) =>
-    `<button type="button" class="day-btn ${(s.dy >> i) & 1 ? 'active' : ''}"
-     onclick="toggleDay(${slot},${i})">${d}</button>`).join('');
+  const dayBtns = DAYS_SY.map(d =>
+    `<button type="button" class="day-btn ${(s.dy >> d.bit) & 1 ? 'active' : ''}"
+     onclick="toggleDay(${slot},${d.bit})">${d.label}</button>`).join('');
 
   return `
   <div class="sched-slot" id="slot${slot}">
@@ -595,8 +623,11 @@ function schedSlotHtml(slot) {
           </select>
         </div>
         <div>
-          <span class="mini-lbl">الساعة</span>
-          <select class="mini-sel" onchange="schedData[${slot}].hr=parseInt(this.value)">${hrOpts}</select>
+          <span class="mini-lbl">الوقت</span>
+          <div style="display:flex;gap:5px;">
+            <select class="mini-sel" style="flex:2;min-width:0;" id="slotHr${slot}" onchange="updateSlotHour(${slot})">${hrOpts}</select>
+            <select class="mini-sel" style="flex:1;min-width:0;" id="slotAmpm${slot}" onchange="updateSlotHour(${slot})">${ampmOpts}</select>
+          </div>
         </div>
         <div>
           <span class="mini-lbl">الدقيقة</span>
@@ -604,19 +635,22 @@ function schedSlotHtml(slot) {
         </div>
       </div>
       <div class="day-row" id="schDays${slot}">${dayBtns}</div>
-      <div class="actions">
-        <button class="ok-btn" style="padding:9px 16px;font-size:13px;" onclick="saveSchedule(${slot})">حفظ هذا الموعد</button>
-      </div>
     </div>
   </div>`;
 }
 
-function toggleDay(slot, dayIdx) {
+function toggleDay(slot, bitPos) {
   if (!schedData[slot]) schedData[slot] = {en:true,ch:0,st:true,hr:8,mn:0,dy:0x7F};
-  schedData[slot].dy ^= (1 << dayIdx);
+  schedData[slot].dy ^= (1 << bitPos);
   const row = document.getElementById('schDays' + slot);
   if (row) row.querySelectorAll('.day-btn').forEach((btn, i) =>
-    btn.classList.toggle('active', !!((schedData[slot].dy >> i) & 1)));
+    btn.classList.toggle('active', !!((schedData[slot].dy >> DAYS_SY[i].bit) & 1)));
+}
+
+function updateSlotHour(slot) {
+  const h12  = parseInt(document.getElementById('slotHr'   + slot).value);
+  const ampm = document.getElementById('slotAmpm' + slot).value;
+  if (schedData[slot]) schedData[slot].hr = hr12to24(h12, ampm);
 }
 
 function addSchedule() {
@@ -641,13 +675,32 @@ function removeSchedule(slot) {
   renderSchedules();
 }
 
-function saveSchedule(slot) {
+function saveAllSchedules() {
   if (!client || !client.connected) { result('schedResult', 'غير متصل', false); return; }
-  const s = schedData[slot];
-  if (!s) return;
-  pub(baseTopic + '/schedule/' + slot + '/set',
-      `${s.en?1:0},${s.ch},${s.st?1:0},${s.hr},${s.mn},${s.dy}`);
-  result('schedResult', `✓ تم حفظ الموعد ${slot + 1}`, true);
+  if (shownSlots.length === 0) { result('schedResult', 'لا توجد مواعيد', false); return; }
+
+  const active = shownSlots.filter(s => schedData[s] && schedData[s].en);
+  for (let i = 0; i < active.length; i++) {
+    for (let j = i + 1; j < active.length; j++) {
+      const a = schedData[active[i]], b = schedData[active[j]];
+      if (a.ch === b.ch && a.hr === b.hr && a.mn === b.mn &&
+          (a.dy & b.dy) !== 0 && a.st !== b.st) {
+        const t = hr24to12(a.hr);
+        result('schedResult',
+          `تعارض بين موعد ${active[i]+1} وموعد ${active[j]+1} — نفس القاطع والوقت (${t.h12}:${String(schedData[active[i]].mn).padStart(2,'0')} ${t.ampm}) بحالتين متعاكستين`,
+          false);
+        return;
+      }
+    }
+  }
+
+  shownSlots.forEach(slot => {
+    const s = schedData[slot];
+    if (!s) return;
+    pub(baseTopic + '/schedule/' + slot + '/set',
+        `${s.en?1:0},${s.ch},${s.st?1:0},${s.hr},${s.mn},${s.dy}`);
+  });
+  result('schedResult', `✓ تم حفظ ${shownSlots.length} موعد`, true);
 }
 
 // ── Timezone ──────────────────────────────────────────────────────────────────
