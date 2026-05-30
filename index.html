@@ -256,12 +256,14 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
       <summary>المنطقة الزمنية</summary>
       <div class="acc-body">
         <select id="tzSelect" class="full-sel">
-          <option value="10800">GMT+3 — بغداد، الرياض، الكويت، قطر</option>
-          <option value="7200">GMT+2 — بيروت، دمشق، القاهرة</option>
-          <option value="14400">GMT+4 — دبي، أبوظبي، مسقط</option>
-          <option value="3600">GMT+1</option>
-          <option value="0">GMT+0</option>
-          <option value="-3600">GMT-1</option>
+          <option value="0">UTC+0 — لندن</option>
+          <option value="3600">UTC+1 — أوروبا الوسطى</option>
+          <option value="7200">UTC+2 — بيروت، القاهرة</option>
+          <option value="10800" selected>UTC+3 — دمشق، بغداد، الرياض، الكويت</option>
+          <option value="14400">UTC+4 — دبي، أبوظبي، مسقط</option>
+          <option value="18000">UTC+5 — كراتشي</option>
+          <option value="-18000">UTC-5 — نيويورك</option>
+          <option value="-28800">UTC-8 — لوس أنجلوس</option>
         </select>
         <div class="actions" style="margin-top:14px;">
           <button class="ok-btn" onclick="saveTz()">حفظ التوقيت</button>
