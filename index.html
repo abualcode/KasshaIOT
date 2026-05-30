@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>KasshaIOT</title>
 <script src="https://unpkg.com/mqtt@4/dist/mqtt.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
 :root{
   --paper:#FBF7EF;--cream:#ECE3D2;--sand:#C2B7A3;--stone:#6E665B;
@@ -200,11 +200,6 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 <div id="pgHome" class="pg">
   <div class="wrap">
 
-    <div class="status-bar">
-      <div class="stat-chip">ESP32: <strong id="stEsp" style="color:var(--stone);">-</strong></div>
-      <div class="stat-chip">IP: <strong id="stIp" style="font-family:Consolas,monospace;font-size:12px;">-</strong></div>
-    </div>
-
     <div id="currBar" class="curr-bar hidden">
       <div>
         <div class="amp-val" id="ampVal">0.000</div>
@@ -287,6 +282,23 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
       </div>
     </details>
 
+    <!-- Pulse duration -->
+    <details class="card">
+      <summary>مدة النبضة الافتراضية</summary>
+      <div class="acc-body">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+          <label style="font-size:14px;">المدة (بالثانية)</label>
+          <input id="pulseSec" type="number" min="1" max="60" value="3"
+            style="width:80px;padding:11px 10px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:16px;font-family:inherit;outline:none;background:#fff;"
+            oninput="this.style.borderColor=''">
+        </div>
+        <div class="actions">
+          <button class="ok-btn" onclick="savePulseSec()">حفظ</button>
+        </div>
+        <div id="pulseSecResult" class="foot-note"></div>
+      </div>
+    </details>
+
     <!-- Advanced connection -->
     <details class="card">
       <summary>إعداد الاتصال (متقدم)</summary>
@@ -303,13 +315,17 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
         </div>
         <div id="connResult" class="foot-note"></div>
         <div class="sep"></div>
+        <div class="status-bar" style="margin-bottom:10px;">
+          <div class="stat-chip">IP الجهاز: <strong id="stIp" style="font-family:Consolas,monospace;font-size:12px;">-</strong></div>
+          <div id="ntpChip" class="stat-chip hidden" style="border-color:rgba(176,39,43,.4);color:#B0272B;">⚠ ساعة الجهاز غير متزامنة</div>
+        </div>
         <button class="gh" onclick="generateSetupLink()">&#x1F517; توليد رابط الإعداد</button>
         <div id="setupLinkBox" class="hidden" style="margin-top:14px;">
           <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
             <input id="setupLinkUrl" type="text" readonly style="flex:1;padding:10px 12px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:12px;font-family:Consolas,monospace;background:var(--paper);outline:none;direction:ltr;text-align:left;">
             <button class="gh" onclick="copySetupLink()" style="flex-shrink:0;">نسخ</button>
           </div>
-          <img id="qrImg" style="display:block;margin:0 auto;border-radius:10px;border:4px solid var(--cream);width:220px;height:220px;" alt="QR Code">
+          <div id="qrBox" style="display:flex;justify-content:center;"></div>
         </div>
         <div id="linkResult" class="foot-note"></div>
       </div>
@@ -334,12 +350,13 @@ const DAYS_SY = [
 ];
 
 // ── App state ─────────────────────────────────────────────────────────────────
-let client     = null;
-let baseTopic  = 'relay16/ESP32-Relay16';
-let states     = Array(RELAY_COUNT).fill(false);
-let labels     = Array.from({length:RELAY_COUNT}, (_, i) => 'قاطع ' + (i + 1));
-let schedData  = {};  // slot → {en,ch,st,hr,mn,dy}
-let shownSlots = [];  // which schedule slots are shown
+let client          = null;
+let baseTopic       = 'relay16/ESP32-Relay16';
+let states          = Array(RELAY_COUNT).fill(false);
+let labels          = Array.from({length:RELAY_COUNT}, (_, i) => 'قاطع ' + (i + 1));
+let schedData       = {};
+let shownSlots      = [];
+let defaultPulseSec = parseInt(localStorage.getItem('kio_pulse_sec') || '3');
 
 function hr24to12(h) {
   if (h === 0)  return {h12:12, ampm:'ص'};
@@ -397,9 +414,10 @@ function generateSetupLink() {
   const url = location.origin + location.pathname + '#K=' + encoded;
   document.getElementById('setupLinkUrl').value = url;
   document.getElementById('setupLinkBox').classList.remove('hidden');
-  QRCode.toDataURL(url, {width:220, margin:2, color:{dark:'#14110E',light:'#FBF7EF'}})
-    .then(dataUrl => { document.getElementById('qrImg').src = dataUrl; })
-    .catch(err => console.error('QR error:', err));
+  const qrBox = document.getElementById('qrBox');
+  qrBox.innerHTML = '';
+  new QRCode(qrBox, {text:url, width:220, height:220,
+    colorDark:'#14110E', colorLight:'#FBF7EF', correctLevel:QRCode.CorrectLevel.M});
   result('linkResult', '', true);
 }
 
@@ -457,6 +475,7 @@ function onConnected() {
   client.subscribe(baseTopic + '/labels');
   client.subscribe(baseTopic + '/schedules');
   client.subscribe(baseTopic + '/timezone');
+  pub(baseTopic + '/time/set', Math.floor(Date.now() / 1000).toString());
 }
 
 // ── Message handlers ──────────────────────────────────────────────────────────
@@ -478,7 +497,14 @@ function onState(msg) {
       states = d.relays.map(v => v === 1 || v === true);
       renderGrid();
     }
-    if (d.ip) document.getElementById('stIp').textContent = d.ip;
+    if (d.ip) {
+      const el = document.getElementById('stIp');
+      if (el) el.textContent = d.ip;
+    }
+    if (d.time_ok !== undefined) {
+      const warn = document.getElementById('ntpChip');
+      if (warn) warn.classList.toggle('hidden', d.time_ok === 1 || d.time_ok === '1');
+    }
   } catch(e) {}
 }
 
@@ -508,9 +534,11 @@ function onLabels(msg) {
 function onSchedules(msg) {
   try {
     const arr = JSON.parse(msg);
+    schedData  = {};
+    shownSlots = [];
     arr.forEach(s => {
       schedData[s.slot] = { en:!!s.en, ch:s.ch, st:!!s.st, hr:s.hr, mn:s.mn, dy:s.dy };
-      if (s.en && !shownSlots.includes(s.slot)) shownSlots.push(s.slot);
+      if (s.en) shownSlots.push(s.slot);
     });
     shownSlots.sort((a, b) => a - b);
     renderSchedules();
@@ -547,11 +575,7 @@ function toggleRelay(ch) {
 }
 
 function pulseRelay(ch) {
-  const msStr = prompt('مدة النبضة بالميلي ثانية (100 - 60000):', '3000');
-  if (!msStr) return;
-  const ms = parseInt(msStr, 10);
-  if (isNaN(ms) || ms < 100 || ms > 60000) { alert('قيمة غير صحيحة'); return; }
-  pubPulse(ch, ms);
+  pubPulse(ch, defaultPulseSec * 1000);
 }
 
 // ── Labels ────────────────────────────────────────────────────────────────────
@@ -656,7 +680,7 @@ function updateSlotHour(slot) {
 function addSchedule() {
   for (let i = 0; i < MAX_SCHEDULES; i++) {
     if (!shownSlots.includes(i)) {
-      if (!schedData[i]) schedData[i] = {en:true, ch:0, st:true, hr:8, mn:0, dy:0x7F};
+      schedData[i] = {en:true, ch:0, st:true, hr:8, mn:0, dy:0x7F};
       shownSlots.push(i);
       shownSlots.sort((a, b) => a - b);
       renderSchedules();
@@ -701,6 +725,15 @@ function saveAllSchedules() {
         `${s.en?1:0},${s.ch},${s.st?1:0},${s.hr},${s.mn},${s.dy}`);
   });
   result('schedResult', `✓ تم حفظ ${shownSlots.length} موعد`, true);
+}
+
+// ── Pulse default ─────────────────────────────────────────────────────────────
+function savePulseSec() {
+  const s = parseInt(document.getElementById('pulseSec').value);
+  if (isNaN(s) || s < 1 || s > 60) { result('pulseSecResult', 'أدخل قيمة بين 1 و 60', false); return; }
+  defaultPulseSec = s;
+  localStorage.setItem('kio_pulse_sec', s);
+  result('pulseSecResult', '✓ مدة النبضة: ' + s + ' ثانية', true);
 }
 
 // ── Timezone ──────────────────────────────────────────────────────────────────
@@ -775,9 +808,7 @@ function setPill(text, cls) {
   p.className   = 'conn-pill' + (cls ? ' ' + cls : '');
 }
 function setEspStatus(online) {
-  const el = document.getElementById('stEsp');
-  el.textContent = online ? 'متصل' : 'غير متصل';
-  el.style.color = online ? '#2D6A4F' : '#B0272B';
+  // ESP32 online status absorbed into the MQTT pill — no separate chip needed
 }
 function result(elId, msg, ok) {
   const el = document.getElementById(elId);
@@ -789,6 +820,8 @@ function result(elId, msg, ok) {
   parseHashCredentials();
   renderGrid();
   renderSchedules();
+  const psEl = document.getElementById('pulseSec');
+  if (psEl) psEl.value = defaultPulseSec;
   const cfg = getCfg();
   if (!cfg) {
     document.getElementById('setupOverlay').classList.remove('hidden');
