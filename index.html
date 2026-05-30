@@ -126,6 +126,18 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 .page-footer strong{color:var(--gold);}
 .hidden{display:none!important;}
 
+/* ── First-time setup overlay ── */
+.setup-overlay{position:fixed;inset:0;background:var(--paper);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;}
+.setup-overlay.hidden{display:none!important;}
+.setup-box{background:#fff;border:1px solid var(--cream);border-radius:var(--r);box-shadow:0 4px 24px rgba(20,17,14,.12);padding:28px 24px;max-width:420px;width:100%;}
+.setup-box h1{font-size:20px;font-weight:700;margin-bottom:6px;}
+.setup-box p{color:var(--stone);font-size:14px;line-height:1.7;margin-bottom:20px;}
+.setup-field{margin-bottom:14px;}
+.setup-field label{display:block;font-size:13px;color:var(--stone);margin-bottom:5px;}
+.setup-field input{width:100%;padding:13px 12px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:15px;font-family:inherit;outline:none;background:#fff;}
+.setup-field input:focus{border-color:var(--crimson);}
+.setup-err{color:#B0272B;font-size:13px;margin-top:8px;min-height:18px;}
+
 @media(max-width:480px){
   .topbar{height:54px;padding:0 10px;}
   .brand-name{font-size:16px;}
@@ -135,6 +147,32 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 </style>
 </head>
 <body>
+
+<!-- ═══════════════════ SETUP OVERLAY (first time only) ═══════════════════ -->
+<div id="setupOverlay" class="setup-overlay hidden">
+  <div class="setup-box">
+    <h1>إعداد الاتصال</h1>
+    <p>أدخل بيانات HiveMQ مرة واحدة. ستُحفظ على جهازك ولن تظهر للآخرين.</p>
+    <div class="setup-field">
+      <label>Broker URL</label>
+      <input id="setupBroker" type="text" placeholder="xxx.hivemq.cloud" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="url">
+    </div>
+    <div class="setup-field">
+      <label>Username</label>
+      <input id="setupUser" type="text" autocomplete="off">
+    </div>
+    <div class="setup-field">
+      <label>Password</label>
+      <input id="setupPass" type="password" autocomplete="new-password">
+    </div>
+    <div class="setup-field">
+      <label>Base Topic</label>
+      <input id="setupTopic" type="text" value="relay16/ESP32-Relay16" autocomplete="off">
+    </div>
+    <button class="ok-btn" style="width:100%;font-size:16px;" onclick="saveSetup()">حفظ والاتصال</button>
+    <div id="setupErr" class="setup-err"></div>
+  </div>
+</div>
 
 <header class="topbar">
   <div class="brand">
@@ -260,7 +298,7 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
         </div>
         <div class="actions">
           <button class="ok-btn" onclick="saveConnAndReconnect()">حفظ وإعادة الاتصال</button>
-          <button class="gh" onclick="resetDefaults()">استعادة الافتراضي</button>
+          <button class="warn-btn" onclick="clearCredentials()">حذف البيانات</button>
         </div>
         <div id="connResult" class="foot-note"></div>
       </div>
@@ -272,19 +310,13 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 <footer class="page-footer">Powered by <strong>AbuCode</strong> | أبو الكود</footer>
 
 <script>
-// ── Hardcoded defaults ────────────────────────────────────────────────────────
-const DEF_BROKER = '6c7ea3ba2aaa4263aaee0c7064e6c727.s1.eu.hivemq.cloud';
-const DEF_USER   = 'kassha';
-const DEF_PASS   = 'A12345678a';
-const DEF_TOPIC  = 'relay16/ESP32-Relay16';
-
 const RELAY_COUNT   = 16;
 const MAX_SCHEDULES = 8;
 const DAYS_AR = ['أحد','إثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
 
 // ── App state ─────────────────────────────────────────────────────────────────
 let client     = null;
-let baseTopic  = DEF_TOPIC;
+let baseTopic  = 'relay16/ESP32-Relay16';
 let states     = Array(RELAY_COUNT).fill(false);
 let labels     = Array.from({length:RELAY_COUNT}, (_, i) => 'قاطع ' + (i + 1));
 let schedData  = {};  // slot → {en,ch,st,hr,mn,dy}
@@ -301,12 +333,30 @@ function showPage(page) {
 
 // ── Credentials ───────────────────────────────────────────────────────────────
 function getCfg() {
+  const broker = localStorage.getItem('kio_broker');
+  if (!broker) return null;
   return {
-    broker: localStorage.getItem('kio_broker') || DEF_BROKER,
-    user:   localStorage.getItem('kio_user')   || DEF_USER,
-    pass:   localStorage.getItem('kio_pass')   || DEF_PASS,
-    topic:  localStorage.getItem('kio_topic')  || DEF_TOPIC,
+    broker,
+    user:  localStorage.getItem('kio_user')  || '',
+    pass:  localStorage.getItem('kio_pass')  || '',
+    topic: localStorage.getItem('kio_topic') || 'relay16/ESP32-Relay16',
   };
+}
+
+function saveSetup() {
+  const broker = document.getElementById('setupBroker').value.trim();
+  const user   = document.getElementById('setupUser').value.trim();
+  const pass   = document.getElementById('setupPass').value;
+  const topic  = document.getElementById('setupTopic').value.trim() || 'relay16/ESP32-Relay16';
+  if (!broker) { document.getElementById('setupErr').textContent = 'أدخل Broker URL'; return; }
+  if (!user)   { document.getElementById('setupErr').textContent = 'أدخل اسم المستخدم'; return; }
+  if (!pass)   { document.getElementById('setupErr').textContent = 'أدخل كلمة المرور'; return; }
+  localStorage.setItem('kio_broker', broker);
+  localStorage.setItem('kio_user',   user);
+  localStorage.setItem('kio_pass',   pass);
+  localStorage.setItem('kio_topic',  topic);
+  document.getElementById('setupOverlay').classList.add('hidden');
+  doConnect({broker, user, pass, topic});
 }
 
 // ── MQTT Connection ───────────────────────────────────────────────────────────
@@ -577,8 +627,9 @@ function saveConnAndReconnect() {
   const broker = document.getElementById('cfgBroker').value.trim();
   const user   = document.getElementById('cfgUser').value.trim();
   const pass   = document.getElementById('cfgPass').value;
-  const topic  = document.getElementById('cfgTopic').value.trim() || DEF_TOPIC;
+  const topic  = document.getElementById('cfgTopic').value.trim() || 'relay16/ESP32-Relay16';
   if (!broker) { result('connResult', 'أدخل Broker URL', false); return; }
+  if (!user)   { result('connResult', 'أدخل اسم المستخدم', false); return; }
   localStorage.setItem('kio_broker', broker);
   localStorage.setItem('kio_user',   user);
   localStorage.setItem('kio_pass',   pass);
@@ -587,14 +638,12 @@ function saveConnAndReconnect() {
   result('connResult', 'جارٍ الاتصال بالإعدادات الجديدة...', true);
 }
 
-function resetDefaults() {
+function clearCredentials() {
+  if (!confirm('سيتم حذف بيانات الاتصال من هذا الجهاز. هل تريد المتابعة؟')) return;
   ['kio_broker','kio_user','kio_pass','kio_topic'].forEach(k => localStorage.removeItem(k));
-  document.getElementById('cfgBroker').value = DEF_BROKER;
-  document.getElementById('cfgUser').value   = DEF_USER;
-  document.getElementById('cfgPass').value   = DEF_PASS;
-  document.getElementById('cfgTopic').value  = DEF_TOPIC;
-  doConnect(getCfg());
-  result('connResult', 'تمت استعادة الإعدادات الافتراضية', true);
+  if (client) { try { client.end(true); } catch(_){} client = null; }
+  setPill('غير متصل', 'err');
+  document.getElementById('setupOverlay').classList.remove('hidden');
 }
 
 // ── Render relay grid ─────────────────────────────────────────────────────────
@@ -640,13 +689,17 @@ function result(elId, msg, ok) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 (function init() {
+  renderGrid();
+  renderSchedules();
   const cfg = getCfg();
+  if (!cfg) {
+    document.getElementById('setupOverlay').classList.remove('hidden');
+    return;
+  }
   document.getElementById('cfgBroker').value = cfg.broker;
   document.getElementById('cfgUser').value   = cfg.user;
   document.getElementById('cfgPass').value   = cfg.pass;
   document.getElementById('cfgTopic').value  = cfg.topic;
-  renderGrid();
-  renderSchedules();
   doConnect(cfg);
 })();
 </script>
