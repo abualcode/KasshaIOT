@@ -113,6 +113,15 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 /* ── Timezone select ── */
 .full-sel{width:100%;padding:13px 14px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:15px;font-family:inherit;background:#fff;outline:none;}
 .full-sel:focus{border-color:var(--crimson);}
+.tz-current{background:var(--paper);border:1px solid var(--cream);border-radius:var(--rs);padding:10px 13px;margin-top:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.tz-current-lbl{color:var(--stone);font-size:12px;}
+.tz-current-val{font-family:Consolas,'Courier New',monospace;font-size:14px;font-weight:600;color:var(--ink);}
+
+/* ── Device info grid ── */
+.device-info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;}
+.info-tile{background:var(--paper);border:1px solid var(--cream);border-radius:var(--rs);padding:11px 13px;}
+.info-label{color:var(--stone);font-size:11px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;}
+.info-value{font-size:14px;font-weight:600;word-break:break-all;font-family:Consolas,'Courier New',monospace;}
 
 /* ── Settings inputs ── */
 .sett-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:14px;}
@@ -176,14 +185,7 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 
 <header class="topbar">
   <div class="brand">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 48" width="30" height="36" aria-hidden="true">
-      <line x1="20" y1="12" x2="20" y2="4" stroke="#C2B7A3" stroke-width="1.5" stroke-linecap="round"/>
-      <circle cx="20" cy="3" r="2.5" fill="#C9A24C"/>
-      <ellipse cx="20" cy="13" rx="12" ry="3.5" fill="#6B1823"/>
-      <path d="M8 13 L6.5 37 Q6.5 44 20 44 Q33.5 44 33.5 37 L32 13Z" fill="#8B1E2D"/>
-      <path d="M12 23 h3 v3 h5 M25 26 v-3 h3" stroke="rgba(201,162,76,.42)" stroke-width=".9" fill="none" stroke-linecap="round"/>
-      <path d="M5.5 36 Q5.5 44 20 44 Q34.5 44 34.5 36 L33.5 34 Q20 37.5 6.5 34Z" fill="#C9A24C"/>
-    </svg>
+    <img src="abualcode/Abu%20alcode%20logo.png" alt="AbuCode" width="36" height="36" style="display:block;flex-shrink:0;">
     <div>
       <div class="brand-name">KasshaIOT</div>
       <div class="brand-sub">تحكم عن بعد</div>
@@ -226,6 +228,19 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 <div id="pgSettings" class="pg hidden">
   <div class="wrap">
 
+    <!-- Device Info -->
+    <details class="card" open>
+      <summary>معلومات الجهاز</summary>
+      <div class="acc-body">
+        <div class="device-info-grid">
+          <div class="info-tile"><div class="info-label">IP</div><div class="info-value" id="infoIp">-</div></div>
+          <div class="info-tile"><div class="info-label">MQTT</div><div class="info-value" id="infoMqtt">-</div></div>
+          <div class="info-tile"><div class="info-label">ESP32</div><div class="info-value" id="infoOnline">-</div></div>
+          <div class="info-tile"><div class="info-label">NTP</div><div class="info-value" id="infoNtp">-</div></div>
+        </div>
+      </div>
+    </details>
+
     <!-- Relay Labels -->
     <details class="card">
       <summary>أسماء القواطع</summary>
@@ -265,6 +280,10 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
           <option value="-18000">UTC-5 — نيويورك</option>
           <option value="-28800">UTC-8 — لوس أنجلوس</option>
         </select>
+        <div class="tz-current">
+          <span class="tz-current-lbl">الوقت الحالي على جهازك (المتصفح)</span>
+          <span class="tz-current-val" id="browserClock">--:--:--</span>
+        </div>
         <div class="actions" style="margin-top:14px;">
           <button class="ok-btn" onclick="saveTz()">حفظ التوقيت</button>
         </div>
@@ -281,6 +300,28 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
         </p>
         <button class="warn-btn" onclick="rebootDevice()">⟳ إعادة التشغيل</button>
         <div id="rebootResult" class="foot-note"></div>
+      </div>
+    </details>
+
+    <!-- OTA Firmware Update -->
+    <details class="card">
+      <summary>تحديث الفرمواير (OTA)</summary>
+      <div class="acc-body">
+        <p style="color:var(--stone);font-size:13px;line-height:1.7;margin-bottom:14px;">
+          ارفع ملف <code>firmware.bin</code> على GitHub Releases (أو أي رابط مباشر HTTPS) والصق الرابط هنا. سيقوم الجهاز بتحميل النسخة الجديدة ويعيد التشغيل تلقائياً.
+        </p>
+        <div class="sett-grid">
+          <div style="grid-column:1/-1;">
+            <label>رابط ملف <code>.bin</code></label>
+            <input id="otaUrl" type="text" autocomplete="off" autocorrect="off" spellcheck="false"
+              placeholder="https://github.com/USER/REPO/releases/download/vX.Y/firmware.bin"
+              style="direction:ltr;text-align:left;font-family:Consolas,monospace;font-size:12px;">
+          </div>
+        </div>
+        <div class="actions">
+          <button class="warn-btn" onclick="triggerOta()">&#x2B06; بدء التحديث</button>
+        </div>
+        <div id="otaResult" class="foot-note"></div>
       </div>
     </details>
 
@@ -317,10 +358,6 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
         </div>
         <div id="connResult" class="foot-note"></div>
         <div class="sep"></div>
-        <div class="status-bar" style="margin-bottom:10px;">
-          <div class="stat-chip">IP الجهاز: <strong id="stIp" style="font-family:Consolas,monospace;font-size:12px;">-</strong></div>
-          <div id="ntpChip" class="stat-chip hidden" style="border-color:rgba(176,39,43,.4);color:#B0272B;">⚠ ساعة الجهاز غير متزامنة</div>
-        </div>
         <button class="gh" onclick="generateSetupLink()">&#x1F517; توليد رابط الإعداد</button>
         <div id="setupLinkBox" class="hidden" style="margin-top:14px;">
           <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;">
@@ -463,20 +500,29 @@ function doConnect(cfg) {
   });
 
   client.on('connect',   onConnected);
-  client.on('reconnect', () => setPill('إعادة اتصال...', ''));
-  client.on('offline',   () => { setPill('غير متصل', 'err'); setEspStatus(false); });
-  client.on('error',     e  => { console.error(e); setPill('خطأ في الاتصال', 'err'); });
+  client.on('reconnect', () => { setPill('إعادة اتصال...', ''); setMqttInfo('إعادة اتصال', false); });
+  client.on('offline',   () => { setPill('غير متصل', 'err'); setMqttInfo('غير متصل', false); setEspStatus(false); });
+  client.on('error',     e  => { console.error(e); setPill('خطأ في الاتصال', 'err'); setMqttInfo('خطأ', false); });
   client.on('message',   onMessage);
+}
+
+function setMqttInfo(text, ok) {
+  const el = document.getElementById('infoMqtt');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = ok ? '#2D6A4F' : '#B0272B';
 }
 
 function onConnected() {
   setPill('متصل', 'ok');
+  setMqttInfo('متصل', true);
   client.subscribe(baseTopic + '/state');
   client.subscribe(baseTopic + '/current');
   client.subscribe(baseTopic + '/online');
   client.subscribe(baseTopic + '/labels');
   client.subscribe(baseTopic + '/schedules');
   client.subscribe(baseTopic + '/timezone');
+  client.subscribe(baseTopic + '/ota/status');
   pub(baseTopic + '/time/set', Math.floor(Date.now() / 1000).toString());
 }
 
@@ -490,6 +536,22 @@ function onMessage(topic, payload) {
   if (topic === b + '/labels')    { onLabels(msg);   return; }
   if (topic === b + '/schedules') { onSchedules(msg); return; }
   if (topic === b + '/timezone')  { onTimezone(msg); return; }
+  if (topic === b + '/ota/status'){ onOtaStatus(msg); return; }
+}
+
+function onOtaStatus(msg) {
+  try {
+    const d = JSON.parse(msg);
+    let text, ok = true;
+    switch (d.status) {
+      case 'queued':      text = '⏳ تم استلام أمر التحديث...'; break;
+      case 'downloading': text = '⬇ جارٍ التحميل والكتابة... (قد يستغرق دقيقة)'; break;
+      case 'success':     text = '✓ تم! الجهاز يُعيد التشغيل...'; break;
+      case 'error':       text = 'خطأ: ' + (d.message || ''); ok = false; break;
+      default:            text = d.status + ': ' + (d.message || '');
+    }
+    result('otaResult', text, ok);
+  } catch(e) {}
 }
 
 function onState(msg) {
@@ -500,12 +562,16 @@ function onState(msg) {
       renderGrid();
     }
     if (d.ip) {
-      const el = document.getElementById('stIp');
+      const el = document.getElementById('infoIp');
       if (el) el.textContent = d.ip;
     }
     if (d.time_ok !== undefined) {
-      const warn = document.getElementById('ntpChip');
-      if (warn) warn.classList.toggle('hidden', d.time_ok === 1 || d.time_ok === '1');
+      const synced = (d.time_ok === 1 || d.time_ok === '1');
+      const ntp = document.getElementById('infoNtp');
+      if (ntp) {
+        ntp.textContent = synced ? 'متزامن ✓' : 'غير متزامن ⚠';
+        ntp.style.color = synced ? '#2D6A4F' : '#B0272B';
+      }
     }
   } catch(e) {}
 }
@@ -754,6 +820,20 @@ function rebootDevice() {
   result('rebootResult', 'تم إرسال أمر إعادة التشغيل...', true);
 }
 
+// ── OTA Firmware Update ───────────────────────────────────────────────────────
+function triggerOta() {
+  if (!client || !client.connected) { result('otaResult', 'غير متصل بـ MQTT', false); return; }
+  const url = document.getElementById('otaUrl').value.trim();
+  if (!url) { result('otaResult', 'أدخل رابط ملف .bin', false); return; }
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    result('otaResult', 'الرابط يجب أن يبدأ بـ http:// أو https://', false); return;
+  }
+  if (!confirm('سيتم تحديث فرمواير الجهاز وإعادة تشغيله. هل تريد المتابعة؟')) return;
+  localStorage.setItem('kio_ota_url', url);
+  pub(baseTopic + '/ota/update', url);
+  result('otaResult', 'جارٍ إرسال أمر التحديث...', true);
+}
+
 // ── Connection settings ───────────────────────────────────────────────────────
 function saveConnAndReconnect() {
   const broker = document.getElementById('cfgBroker').value.trim();
@@ -810,8 +890,21 @@ function setPill(text, cls) {
   p.className   = 'conn-pill' + (cls ? ' ' + cls : '');
 }
 function setEspStatus(online) {
-  // ESP32 online status absorbed into the MQTT pill — no separate chip needed
+  const el = document.getElementById('infoOnline');
+  if (!el) return;
+  el.textContent = online ? 'متصل ✓' : 'غير متصل';
+  el.style.color = online ? '#2D6A4F' : '#B0272B';
 }
+
+function tickBrowserClock() {
+  const el = document.getElementById('browserClock');
+  if (!el) return;
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  el.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+setInterval(tickBrowserClock, 1000);
+tickBrowserClock();
 function result(elId, msg, ok) {
   const el = document.getElementById(elId);
   if (el) { el.textContent = msg; el.style.color = ok ? '#2D6A4F' : '#B0272B'; }
@@ -824,6 +917,8 @@ function result(elId, msg, ok) {
   renderSchedules();
   const psEl = document.getElementById('pulseSec');
   if (psEl) psEl.value = defaultPulseSec;
+  const otaEl = document.getElementById('otaUrl');
+  if (otaEl) otaEl.value = localStorage.getItem('kio_ota_url') || '';
   const cfg = getCfg();
   if (!cfg) {
     document.getElementById('setupOverlay').classList.remove('hidden');
