@@ -49,10 +49,11 @@ html,body{background:var(--paper);color:var(--ink);font-family:'Segoe UI',Tahoma
 
 /* ── Card / Accordion ── */
 .card{background:#fff;border:1px solid var(--cream);border-radius:var(--r);margin-bottom:12px;box-shadow:0 1px 10px rgba(20,17,14,.05);overflow:hidden;}
-details.card>summary{padding:16px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:space-between;list-style:none;user-select:none;-webkit-tap-highlight-color:rgba(0,0,0,.04);}
+details.card>summary{padding:16px;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:flex-start;gap:8px;list-style:none;user-select:none;-webkit-tap-highlight-color:rgba(0,0,0,.04);}
 details.card>summary::-webkit-details-marker{display:none;}
-details.card>summary::after{content:'▾';font-size:15px;color:var(--crimson);margin-inline-start:8px;flex-shrink:0;transition:transform .15s;}
-details.card[open]>summary::after{transform:rotate(180deg);}
+/* chevron sits right next to the title (not pushed to the far edge) */
+details.card>summary::before{content:'▾';font-size:14px;color:var(--crimson);flex-shrink:0;transition:transform .15s;}
+details.card[open]>summary::before{transform:rotate(180deg);}
 .acc-body{padding:0 16px 18px;}
 
 /* ── Status bar ── */
@@ -162,6 +163,16 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 
 /* dirty badge */
 .dirty-badge{display:inline-block;background:var(--warn-bg);color:var(--warn-clr);border:1px solid var(--gold);border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;}
+
+/* collapsed summary row */
+.sched-collapsed{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:13px 14px;cursor:pointer;}
+.s-state{font-size:11px;font-weight:600;border-radius:999px;padding:2px 8px;background:var(--cream);color:var(--stone);margin-inline-start:4px;white-space:nowrap;}
+.s-state.on{background:var(--ok-bg);color:var(--ok);}
+.mini-btn{background:var(--cream);border:1px solid var(--sand);border-radius:8px;color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;padding:7px 12px;min-height:36px;font-family:inherit;white-space:nowrap;}
+.mini-btn:hover{border-color:var(--crimson);color:var(--crimson);}
+.sched-card.editing{border-color:var(--crimson);box-shadow:0 2px 12px rgba(139,30,45,.10);}
+.trash-wide{background:transparent;border:1.5px solid var(--cream);border-radius:var(--rs);color:#B0272B;font-size:14px;font-weight:600;cursor:pointer;padding:11px 16px;min-height:44px;font-family:inherit;}
+.trash-wide:hover{background:#B0272B;color:#fff;border-color:#B0272B;}
 
 /* ── Timezone select ── */
 .full-sel{width:100%;padding:13px 14px;border:1.5px solid var(--cream);border-radius:var(--rs);font-size:15px;font-family:inherit;background:#fff;outline:none;}
@@ -342,24 +353,6 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
           <button class="ok-btn" onclick="saveTz()">حفظ التوقيت</button>
         </div>
         <div id="tzResult" class="foot-note"></div>
-      </div>
-    </details>
-
-    <!-- Location (for sunrise/sunset) -->
-    <details class="card">
-      <summary>الموقع الجغرافي (للشروق/الغروب)</summary>
-      <div class="acc-body">
-        <p style="color:var(--stone);font-size:13px;line-height:1.7;margin-bottom:12px;">
-          يُستخدم لحساب وقت شروق وغروب الشمس في المواعيد. اكتب إحداثيات مدينتك (من خرائط Google).
-        </p>
-        <div class="sett-grid">
-          <div><label>خط العرض (Latitude)</label><input id="latInput" type="number" step="0.0001" placeholder="33.51" oninput="this.dataset.dirty='1'"></div>
-          <div><label>خط الطول (Longitude)</label><input id="lonInput" type="number" step="0.0001" placeholder="36.29" oninput="this.dataset.dirty='1'"></div>
-        </div>
-        <div class="actions">
-          <button class="ok-btn" onclick="saveLocation()">حفظ الموقع</button>
-        </div>
-        <div id="locResult" class="foot-note"></div>
       </div>
     </details>
 
@@ -594,7 +587,6 @@ function onConnected() {
   client.subscribe(baseTopic + '/labels');
   client.subscribe(baseTopic + '/schedules');
   client.subscribe(baseTopic + '/timezone');
-  client.subscribe(baseTopic + '/location');
   client.subscribe(baseTopic + '/ota/status');
   pub(baseTopic + '/time/set', Math.floor(Date.now() / 1000).toString());
 }
@@ -609,7 +601,6 @@ function onMessage(topic, payload) {
   if (topic === b + '/labels')    { onLabels(msg);   return; }
   if (topic === b + '/schedules') { onSchedules(msg); return; }
   if (topic === b + '/timezone')  { onTimezone(msg); return; }
-  if (topic === b + '/location')  { onLocation(msg); return; }
   if (topic === b + '/ota/status'){ onOtaStatus(msg); return; }
 }
 
@@ -681,10 +672,13 @@ function onSchedules(msg) {
     schedData  = {};
     shownSlots = [];
     arr.forEach(p => {
-      schedData[p.slot] = physToLogical(p);
-      if (p.en) shownSlots.push(p.slot);
+      const s = physToLogical(p);
+      schedData[p.slot] = s;
+      // Show enabled AND configured-but-disabled slots; hide only empty slots.
+      if (isConfigured(s)) shownSlots.push(p.slot);
     });
     shownSlots.sort((a, b) => a - b);
+    editingSlot = null;           // everything collapsed after a device refresh
     renderSchedules();
   } catch(e) {}
 }
@@ -699,14 +693,6 @@ function onTimezone(msg) {
     if (diff < bestDiff) { bestDiff = diff; best = i; }
   }
   sel.selectedIndex = best;
-}
-
-function onLocation(msg) {
-  try {
-    const d = JSON.parse(msg);
-    if (d.lat !== undefined) { const e=document.getElementById('latInput'); if(e && !e.dataset.dirty) e.value=d.lat; }
-    if (d.lon !== undefined) { const e=document.getElementById('lonInput'); if(e && !e.dataset.dirty) e.value=d.lon; }
-  } catch(e) {}
 }
 
 // ── Publish helpers ───────────────────────────────────────────────────────────
@@ -754,48 +740,61 @@ function saveLabels() {
 
 // ── Schedules (logical model: type = period | single | pulse) ──────────────────
 // Day masks (bit0=Sun..bit6=Sat). Syria weekend = Fri+Sat.
-const DAYS_ALL = 0x7F, DAYS_WORK = 0x1F /*Sun-Thu*/, DAYS_WEEKEND = 0x60 /*Fri,Sat*/;
+const DAYS_ALL = 0x7F, DAYS_WEEKEND = 0x60 /*Fri,Sat*/;
 let schedDirty = false;
+let editingSlot = null;   // the one slot currently expanded for editing (or null)
 
 function pad2(n){ return String(n).padStart(2,'0'); }
 function tStr(hr,mn){ return pad2(hr|0)+':'+pad2(mn|0); }
 function tParse(t){ const p=String(t||'00:00').split(':'); return {hr:(parseInt(p[0])||0), mn:(parseInt(p[1])||0)}; }
 function tMin(t){ const x=tParse(t); return x.hr*60+x.mn; }
+function fmt12(t){ const x=tParse(t); const ap=x.hr<12?'ص':'م'; let h=x.hr%12; if(h===0)h=12; return h+':'+pad2(x.mn)+' '+ap; }
 function relayName(ch){ return labels[ch] || ('قاطع '+(ch+1)); }
+
+// A slot is "configured" (worth showing) if enabled, or has days/pulse/window
+// set, or a non-default channel. A blank/cleared slot is hidden.
+function isConfigured(s){
+  return !!s && (s.en || s.dy!==0 || s.ps>0 || s.type==='period' || s.ch!==0 || s.start!=='00:00');
+}
 
 function daysSummary(dy){
   if (dy===DAYS_ALL) return 'كل الأيام';
-  if (dy===DAYS_WORK) return 'أيام العمل';
   if (dy===DAYS_WEEKEND) return 'عطلة نهاية الأسبوع';
   const names = DAYS_SY.filter(d => (dy>>d.bit)&1).map(d => d.label);
   return names.length ? names.join('، ') : 'بدون أيام';
 }
-
+function typeLabel(s){
+  if (s.type==='period') return 'فترة تشغيل';
+  if (s.type==='pulse')  return 'نبضة';
+  return s.action==='on' ? 'تشغيل' : 'إطفاء';
+}
+// Intent-based title: "غرفة التحقيق — فترة تشغيل"
+function schedTitle(s){ return `${relayName(s.ch)} — ${typeLabel(s)}`; }
 function summaryText(s){
-  const name = relayName(s.ch), days = daysSummary(s.dy);
-  if (s.type==='period') return `${name} · ${s.start} ← ${s.end} · ${days}`;
-  if (s.type==='pulse')  return `${name} · نبضة ${s.ps} ثانية عند ${s.start} · ${days}`;
-  return `${name} · ${s.action==='on'?'تشغيل':'إطفاء'} عند ${s.start} · ${days}`;
+  const days = daysSummary(s.dy);
+  if (s.type==='period') return `من ${fmt12(s.start)} إلى ${fmt12(s.end)} · ${days}`;
+  if (s.type==='pulse')  return `نبضة ${s.ps} ثانية عند ${fmt12(s.start)} · ${days}`;
+  return `${s.action==='on'?'تشغيل':'إطفاء'} عند ${fmt12(s.start)} · ${days}`;
 }
 
 // physical (device JSON) → logical
 function physToLogical(p){
   const start = tStr(p.hr, p.mn);
   let type='single', end='17:00', action='on', ps=defaultPulseSec;
-  if ((p.ps|0) > 0)            { type='pulse';  ps=p.ps|0; }
-  else if ((p.ety) !== 255 && p.ety!==undefined) { type='period'; end=tStr(p.ehr, p.emn); }
-  else                        { type='single'; action=p.st?'on':'off'; }
+  if ((p.ps|0) > 0)        { type='pulse';  ps=p.ps|0; }
+  else if (p.wnd)          { type='period'; end=tStr(p.ehr, p.emn); }
+  else                     { type='single'; action=p.st?'on':'off'; }
   return { en:!!p.en, type, ch:p.ch|0, start, end, action, ps, dy:(p.dy|0) };
 }
 
-// logical → CSV (firmware v2 order: en,ch,st,sty,shr,smn,sof,ety,ehr,emn,eof,dy,ps)
+// logical → CSV v3: en,ch,st,wnd,shr,smn,ehr,emn,dy,ps
 function schedCsv(s, enabled){
   const a = tParse(s.start);
-  let st=1, ety=255, ehr=0, emn=0, ps=0;
-  if (s.type==='period') { st=1; ety=0; const b=tParse(s.end); ehr=b.hr; emn=b.mn; }
-  else if (s.type==='single') { st=(s.action==='on')?1:0; ety=255; }
-  else if (s.type==='pulse') { st=1; ety=255; ps=s.ps|0; }
-  return `${enabled?1:0},${s.ch},${st},0,${a.hr},${a.mn},0,${ety},${ehr},${emn},0,${s.dy},${ps}`;
+  let st=1, wnd=0, ehr=0, emn=0, ps=0;
+  if (s.type==='period') { st=1; wnd=1; const b=tParse(s.end); ehr=b.hr; emn=b.mn; }
+  else if (s.type==='single') { st=(s.action==='on')?1:0; }
+  else if (s.type==='pulse') { st=1; ps=s.ps|0; }
+  return `${enabled?1:0},${s.ch},${st},${wnd},${a.hr},${a.mn},${ehr},${emn},${s.dy},${ps}`;
 }
 
 function markDirty(){ schedDirty = true; updateDirtyBadge(); }
@@ -804,17 +803,33 @@ function updateDirtyBadge(){
   const b = document.getElementById('schedDirty');
   if (b) b.classList.toggle('hidden', !schedDirty);
 }
-function refreshSummary(slot){
-  const s = schedData[slot]; if (!s) return;
-  const el = document.getElementById('sum'+slot); if (el) el.textContent = summaryText(s);
-  const card = document.getElementById('card'+slot); if (card) card.classList.toggle('off', !s.en);
-}
 
 function renderSchedules(){
-  document.getElementById('schedList').innerHTML = shownSlots.map(schedSlotHtml).join('');
+  const cont = document.getElementById('schedList');
+  cont.innerHTML = shownSlots.length
+    ? shownSlots.map(slot => slot===editingSlot ? schedEditHtml(slot) : schedCollapsedHtml(slot)).join('')
+    : `<p class="foot-note" style="text-align:center;padding:8px 0;">لا توجد مواعيد. اضغط "إضافة موعد".</p>`;
   const addBtn = document.getElementById('addSchedBtn');
   if (addBtn) addBtn.style.display = shownSlots.length >= MAX_SCHEDULES ? 'none' : '';
   updateDirtyBadge();
+}
+
+// ── Collapsed (summary) row ──
+function schedCollapsedHtml(slot){
+  const s = schedData[slot];
+  return `
+  <div class="sched-card ${s.en?'':'off'}">
+    <div class="sched-collapsed" onclick="editSchedule(${slot})">
+      <div style="flex:1;min-width:0;">
+        <div class="s-title">${esc(schedTitle(s))} <span class="s-state ${s.en?'on':''}">${s.en?'مفعّل':'مغلق'}</span></div>
+        <div class="s-summary">${esc(summaryText(s))}</div>
+      </div>
+      <div class="sched-head-actions">
+        <button type="button" class="mini-btn" onclick="event.stopPropagation();editSchedule(${slot})">تعديل</button>
+        <button type="button" class="trash" aria-label="حذف الموعد" title="حذف الموعد" onclick="event.stopPropagation();removeSchedule(${slot})">&#x1F5D1;</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function dayPickHtml(slot, s){
@@ -828,13 +843,13 @@ function dayPickHtml(slot, s){
     <div class="daypick">${days}</div>
     <div class="day-shortcuts">
       <button type="button" onclick="setDays(${slot},${DAYS_ALL})">كل الأيام</button>
-      <button type="button" onclick="setDays(${slot},${DAYS_WORK})">أيام العمل</button>
       <button type="button" onclick="setDays(${slot},0)">مسح</button>
     </div>
   </div>`;
 }
 
-function schedSlotHtml(slot){
+// ── Expanded (edit) card ──
+function schedEditHtml(slot){
   const s = schedData[slot];
   const chOpts = Array.from({length:RELAY_COUNT}, (_, i) =>
     `<option value="${i}" ${s.ch === i ? 'selected' : ''}>${esc(labels[i])}</option>`).join('');
@@ -865,18 +880,13 @@ function schedSlotHtml(slot){
   }
 
   return `
-  <div class="sched-card ${s.en?'':'off'}" id="card${slot}">
+  <div class="sched-card editing ${s.en?'':'off'}" id="card${slot}">
     <div class="sched-head">
       <div style="flex:1;min-width:0;">
-        <div class="s-title">موعد ${slot+1}</div>
+        <div class="s-title" id="sttl${slot}">${esc(schedTitle(s))}</div>
         <div class="s-summary" id="sum${slot}">${esc(summaryText(s))}</div>
       </div>
-      <div class="sched-head-actions">
-        <button type="button" class="etog ${s.en?'on':''}" aria-pressed="${s.en}" onclick="toggleEnabled(${slot})">
-          <span class="dot"></span>${s.en?'الموعد مفعّل':'الموعد مغلق'}
-        </button>
-        <button type="button" class="trash" aria-label="حذف الموعد" title="حذف الموعد" onclick="removeSchedule(${slot})">&#x1F5D1;</button>
-      </div>
+      <button type="button" class="mini-btn" onclick="collapseSchedule()">تم</button>
     </div>
     <div class="sched-body">
       <div class="type-tabs" role="group" aria-label="نوع الموعد">
@@ -887,30 +897,55 @@ function schedSlotHtml(slot){
       <div class="field"><label>القاطع</label><select class="sel" onchange="setRelay(${slot},this.value)">${chOpts}</select></div>
       ${typeFields}
       ${dayPickHtml(slot, s)}
+      <div class="field">
+        <label>تفعيل الموعد</label>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <label class="tog" title="تفعيل/تعطيل الموعد">
+            <input type="checkbox" ${s.en?'checked':''} onchange="setEnabled(${slot},this.checked)">
+            <span class="tog-track"></span><span class="tog-thumb"></span>
+          </label>
+          <span id="enlbl${slot}" style="font-weight:600;color:${s.en?'var(--ok)':'var(--stone)'};">${s.en?'مفعّل':'مغلق'}</span>
+        </div>
+      </div>
+      <div class="actions" style="border-top:1px solid var(--cream);padding-top:12px;">
+        <button class="trash-wide" onclick="removeSchedule(${slot})">&#x1F5D1; حذف الموعد</button>
+      </div>
     </div>
   </div>`;
 }
 
-function setType(slot, type){ schedData[slot].type = type; markDirty(); renderSchedules(); }
-function setRelay(slot, v){ schedData[slot].ch = parseInt(v)||0; refreshSummary(slot); markDirty(); }
-function setTimeField(slot, field, v){ schedData[slot][field] = v || '00:00'; refreshSummary(slot); markDirty(); }
-function setAction(slot, a){ schedData[slot].action = a; markDirty(); renderSchedules(); }
-function setPulse(slot, v){ let n=parseInt(v)||0; schedData[slot].ps = n; refreshSummary(slot); markDirty(); }
-function toggleEnabled(slot){ schedData[slot].en = !schedData[slot].en; markDirty(); renderSchedules(); }
+function refreshEditHead(slot){
+  const s = schedData[slot]; if (!s) return;
+  const t = document.getElementById('sttl'+slot); if (t) t.textContent = schedTitle(s);
+  const el = document.getElementById('sum'+slot); if (el) el.textContent = summaryText(s);
+}
 
-function toggleDay(slot, bit){
-  schedData[slot].dy ^= (1 << bit);
-  refreshSummary(slot);
+function editSchedule(slot){ editingSlot = slot; renderSchedules(); }
+function collapseSchedule(){ editingSlot = null; renderSchedules(); }
+
+function setType(slot, type){ schedData[slot].type = type; markDirty(); renderSchedules(); }
+function setRelay(slot, v){ schedData[slot].ch = parseInt(v)||0; refreshEditHead(slot); markDirty(); }
+function setTimeField(slot, field, v){ schedData[slot][field] = v || '00:00'; refreshEditHead(slot); markDirty(); }
+function setAction(slot, a){ schedData[slot].action = a; markDirty(); renderSchedules(); }
+function setPulse(slot, v){ schedData[slot].ps = parseInt(v)||0; refreshEditHead(slot); markDirty(); }
+function setEnabled(slot, on){
+  schedData[slot].en = on;
+  const lbl = document.getElementById('enlbl'+slot);
+  if (lbl) { lbl.textContent = on?'مفعّل':'مغلق'; lbl.style.color = on?'var(--ok)':'var(--stone)'; }
+  const card = document.getElementById('card'+slot); if (card) card.classList.toggle('off', !on);
   markDirty();
 }
+function toggleDay(slot, bit){ schedData[slot].dy ^= (1 << bit); refreshEditHead(slot); markDirty(); }
 function setDays(slot, mask){ schedData[slot].dy = mask; markDirty(); renderSchedules(); }
 
 function addSchedule(){
   for (let i = 0; i < MAX_SCHEDULES; i++) {
     if (!shownSlots.includes(i)) {
-      schedData[i] = {en:true, type:'period', ch:0, start:'08:00', end:'17:00', action:'on', ps:defaultPulseSec, dy:DAYS_ALL};
+      // type=period, enabled, first relay, default times, but NO days (must pick)
+      schedData[i] = {en:true, type:'period', ch:0, start:'08:00', end:'17:00', action:'on', ps:defaultPulseSec, dy:0};
       shownSlots.push(i);
       shownSlots.sort((a, b) => a - b);
+      editingSlot = i;            // open only the new one
       markDirty();
       renderSchedules();
       return;
@@ -920,12 +955,12 @@ function addSchedule(){
 
 function removeSchedule(slot){
   if (!confirm('هل تريد حذف هذا الموعد؟')) return;
+  // Local only — do NOT publish. The slot is cleared on the device when the
+  // user presses "حفظ المواعيد".
   shownSlots = shownSlots.filter(s => s !== slot);
-  if (schedData[slot]) {
-    schedData[slot].en = false;
-    if (client && client.connected) pub(baseTopic + '/schedule/' + slot + '/set', schedCsv(schedData[slot], false));
-    else markDirty();
-  }
+  delete schedData[slot];
+  if (editingSlot === slot) editingSlot = null;
+  markDirty();
   renderSchedules();
 }
 
@@ -933,19 +968,18 @@ function validateSchedules(){
   const active = shownSlots.filter(s => schedData[s] && schedData[s].en);
   for (const slot of active) {
     const s = schedData[slot];
-    if (s.dy === 0) return `موعد ${slot+1}: اختر يومًا واحدًا على الأقل`;
+    if (s.dy === 0) return `${schedTitle(s)}: اختر يومًا واحدًا على الأقل`;
     if (s.type==='period' && tMin(s.end) <= tMin(s.start))
-      return `موعد ${slot+1}: وقت النهاية يجب أن يكون بعد وقت البداية`;
+      return `${schedTitle(s)}: وقت النهاية يجب أن يكون بعد وقت البداية`;
     if (s.type==='pulse' && (s.ps < 1 || s.ps > 60))
-      return `موعد ${slot+1}: مدة النبضة يجب أن تكون بين 1 و 60 ثانية`;
+      return `${schedTitle(s)}: مدة النبضة يجب أن تكون بين 1 و 60 ثانية`;
   }
-  // conflict: two single actions, same relay/time, overlapping days, opposite
   for (let i = 0; i < active.length; i++) {
     for (let j = i + 1; j < active.length; j++) {
       const a = schedData[active[i]], b = schedData[active[j]];
       if (a.type==='single' && b.type==='single' && a.ch===b.ch &&
           tMin(a.start)===tMin(b.start) && (a.dy & b.dy)!==0 && a.action!==b.action)
-        return `تعارض بين موعد ${active[i]+1} وموعد ${active[j]+1} — نفس القاطع والوقت بإجراءين متعاكسين`;
+        return `تعارض: "${schedTitle(a)}" و"${schedTitle(b)}" نفس القاطع والوقت بإجراءين متعاكسين`;
     }
   }
   return null;
@@ -955,11 +989,12 @@ function saveAllSchedules(){
   if (!client || !client.connected) { result('schedResult', 'غير متصل بـ MQTT', false); return; }
   const err = validateSchedules();
   if (err) { result('schedResult', err, false); return; }
-  // publish every slot 0..7 so removed slots get cleared too
+  // Publish all 8 slots: shown ones carry their data; the rest are cleared.
+  const CLEARED = '0,0,0,0,0,0,0,0,0,0';   // v3 empty slot (days=0 → treated empty)
   for (let slot = 0; slot < MAX_SCHEDULES; slot++) {
     const s = schedData[slot];
-    if (s) pub(baseTopic + '/schedule/' + slot + '/set', schedCsv(s, s.en && shownSlots.includes(slot)));
-    else   pub(baseTopic + '/schedule/' + slot + '/set', `0,0,0,0,0,0,0,255,0,0,0,127,0`);
+    if (s && shownSlots.includes(slot)) pub(baseTopic + '/schedule/' + slot + '/set', schedCsv(s, s.en));
+    else                                 pub(baseTopic + '/schedule/' + slot + '/set', CLEARED);
   }
   clearDirty();
   result('schedResult', `✓ تم حفظ المواعيد (${shownSlots.length})`, true);
@@ -980,20 +1015,6 @@ function saveTz() {
   const offset = document.getElementById('tzSelect').value;
   pub(baseTopic + '/timezone/set', offset);
   result('tzResult', 'تم حفظ التوقيت وإرساله للجهاز', true);
-}
-
-// ── Location (sunrise/sunset) ─────────────────────────────────────────────────
-function saveLocation() {
-  if (!client || !client.connected) { result('locResult', 'غير متصل', false); return; }
-  const lat = parseFloat(document.getElementById('latInput').value);
-  const lon = parseFloat(document.getElementById('lonInput').value);
-  if (isNaN(lat) || isNaN(lon) || lat<-90 || lat>90 || lon<-180 || lon>180) {
-    result('locResult', 'إحداثيات غير صحيحة', false); return;
-  }
-  pub(baseTopic + '/location/set', lat + ',' + lon);
-  document.getElementById('latInput').dataset.dirty = '';
-  document.getElementById('lonInput').dataset.dirty = '';
-  result('locResult', '✓ تم حفظ الموقع وإرساله للجهاز', true);
 }
 
 // ── Reboot ────────────────────────────────────────────────────────────────────
@@ -1085,7 +1106,9 @@ function tickBrowserClock() {
   if (!el) return;
   const now = new Date();
   const pad = n => String(n).padStart(2,'0');
-  el.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const ap = now.getHours()<12?'ص':'م';
+  let h = now.getHours()%12; if(h===0) h=12;
+  el.textContent = `${h}:${pad(now.getMinutes())}:${pad(now.getSeconds())} ${ap}`;
 }
 setInterval(tickBrowserClock, 1000);
 tickBrowserClock();
