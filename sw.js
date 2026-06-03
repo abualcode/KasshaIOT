@@ -1,11 +1,12 @@
 // KasshaIOT service worker — caches the app shell so the UI loads offline.
 // Bump CACHE_VERSION whenever you change the HTML/icons to force an update.
-const CACHE_VERSION = 'kasshaiot-v1';
+const CACHE_VERSION = 'kasshaiot-v2';
 
 // App-shell assets. CDN libs are cached opportunistically (cache-first with
 // network fallback) — MQTT itself still needs the network to talk to the broker.
 const SHELL = [
-  './KasshaIOT-Remote.html',
+  './',
+  './index.html',
   './manifest.json',
   './abualcode/Abu%20alcode%20logo.png',
   './icons/icon-192.png',

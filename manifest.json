@@ -4,7 +4,7 @@
   "description": "تحكم بلوحة القواطع 16 مجرى عن بُعد عبر MQTT — منتج AbuCode",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./KasshaIOT-Remote.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
