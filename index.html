@@ -751,10 +751,11 @@ function tMin(t){ const x=tParse(t); return x.hr*60+x.mn; }
 function fmt12(t){ const x=tParse(t); const ap=x.hr<12?'ص':'م'; let h=x.hr%12; if(h===0)h=12; return h+':'+pad2(x.mn)+' '+ap; }
 function relayName(ch){ return labels[ch] || ('قاطع '+(ch+1)); }
 
-// A slot is "configured" (worth showing) if enabled, or has days/pulse/window
-// set, or a non-default channel. A blank/cleared slot is hidden.
+// A slot is "configured" (worth showing) only if it's enabled OR it has real
+// content (days chosen, or a pulse). A disabled slot with no days is treated
+// as empty/cleared and hidden.
 function isConfigured(s){
-  return !!s && (s.en || s.dy!==0 || s.ps>0 || s.type==='period' || s.ch!==0 || s.start!=='00:00');
+  return !!s && (s.en || s.dy!==0 || s.ps>0);
 }
 
 function daysSummary(dy){
