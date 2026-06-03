@@ -17,6 +17,7 @@
 
 <script src="https://unpkg.com/mqtt@4/dist/mqtt.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
 <style>
 :root{
   --paper:#FBF7EF;--cream:#ECE3D2;--sand:#C2B7A3;--stone:#6E665B;
@@ -212,6 +213,14 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 .setup-field input:focus{border-color:var(--crimson);}
 .setup-err{color:#B0272B;font-size:13px;margin-top:8px;min-height:18px;}
 
+/* ── QR scanner overlay ── */
+.scan-overlay{position:fixed;inset:0;background:#000;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;}
+.scan-overlay.hidden{display:none!important;}
+.scan-box{position:relative;width:min(90vw,360px);aspect-ratio:1;border-radius:var(--r);overflow:hidden;background:#000;}
+.scan-box video{width:100%;height:100%;object-fit:cover;}
+.scan-frame{position:absolute;inset:14%;border:3px solid var(--gold);border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);}
+.scan-hint{color:var(--paper);font-size:14px;text-align:center;max-width:360px;}
+
 @media(max-width:480px){
   .topbar{height:54px;padding:0 10px;}
   .brand-name{font-size:16px;}
@@ -226,6 +235,15 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
 <div id="setupOverlay" class="setup-overlay hidden">
   <div class="setup-box">
     <h1>إعداد الاتصال</h1>
+    <p style="color:var(--stone);font-size:13px;line-height:1.6;margin-bottom:10px;">
+      عندك رابط أو رمز إعداد (من زر "توليد رابط الإعداد" أو صفحة QR في الجهاز)؟ الصقه هنا للتعبئة التلقائية:
+    </p>
+    <button class="ok-btn" style="width:100%;margin-bottom:8px;" onclick="startQrScan()">&#x1F4F7; مسح رمز QR من الجهاز</button>
+    <div class="setup-field">
+      <input id="setupCode" type="text" placeholder="أو الصق الرابط/الرمز (‎#K=...‎)" autocomplete="off" autocorrect="off" spellcheck="false" style="direction:ltr;text-align:left;">
+    </div>
+    <button class="gh" style="width:100%;margin-bottom:6px;" onclick="importSetupCode()">&#x1F4E5; استيراد من الرابط/الرمز</button>
+    <div style="text-align:center;color:var(--stone);font-size:12px;margin:10px 0;">— أو أدخلها يدوياً —</div>
     <div class="setup-field">
       <label>Broker URL</label>
       <input id="setupBroker" type="text" placeholder="xxx.hivemq.cloud" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="url">
@@ -245,6 +263,16 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
     <button class="ok-btn" style="width:100%;font-size:16px;" onclick="saveSetup()">حفظ والاتصال</button>
     <div id="setupErr" class="setup-err"></div>
   </div>
+</div>
+
+<!-- ═══════════════════ QR SCANNER OVERLAY ═══════════════════ -->
+<div id="scanOverlay" class="scan-overlay hidden">
+  <div class="scan-box">
+    <video id="scanVideo" playsinline muted></video>
+    <div class="scan-frame"></div>
+  </div>
+  <div class="scan-hint" id="scanHint">وجّه الكاميرا نحو رمز QR في صفحة الجهاز…</div>
+  <button class="warn-btn" onclick="stopQrScan()">إلغاء</button>
 </div>
 
 <header class="topbar">
@@ -538,6 +566,81 @@ function copySetupLink() {
     () => result('linkResult', '✓ تم نسخ الرابط — أرسله على واتساب أو حوّله لـ QR', true),
     () => result('linkResult', 'انسخ الرابط يدوياً من الحقل', false)
   );
+}
+
+// Import credentials from a pasted setup link or raw #K= code. Works inside a
+// standalone PWA (iOS) where there's no QR scanner and Safari's storage isn't
+// shared — paste once and all four fields fill in.
+function importSetupCode() {
+  let v = document.getElementById('setupCode').value.trim();
+  const errEl = document.getElementById('setupErr');
+  if (!v) { errEl.style.color = '#B0272B'; errEl.textContent = 'الصق الرابط أو الرمز أولاً'; return; }
+  // Accept a full URL (…#K=XXXX), a "K=XXXX" fragment, or the raw base64.
+  const i = v.indexOf('K=');
+  if (i >= 0) v = v.slice(i + 2);
+  v = v.split('#')[0].split('&')[0].replace(/-/g, '+').replace(/_/g, '/');
+  try {
+    const cfg = JSON.parse(atob(v));
+    if (!cfg.b) throw new Error('bad');
+    document.getElementById('setupBroker').value = cfg.b;
+    document.getElementById('setupUser').value   = cfg.u || '';
+    document.getElementById('setupPass').value   = cfg.p || '';
+    document.getElementById('setupTopic').value  = cfg.t || 'relay16/ESP32-Relay16';
+    errEl.style.color = '#2D6A4F';
+    errEl.textContent = '✓ تم الاستيراد — اضغط "حفظ والاتصال"';
+  } catch (e) {
+    errEl.style.color = '#B0272B';
+    errEl.textContent = 'الرمز غير صحيح — تأكد أنك نسخت الرابط كاملاً';
+  }
+}
+
+// ── QR camera scanner (jsQR) ──────────────────────────────────────────────────
+let scanStream = null, scanRAF = null;
+async function startQrScan() {
+  const errEl = document.getElementById('setupErr');
+  if (typeof jsQR === 'undefined') { errEl.style.color='#B0272B'; errEl.textContent='ماسح QR غير متاح (لا إنترنت لتحميله أول مرة)'; return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    errEl.style.color='#B0272B'; errEl.textContent='الكاميرا غير مدعومة في هذا المتصفح'; return;
+  }
+  const overlay = document.getElementById('scanOverlay');
+  const video = document.getElementById('scanVideo');
+  overlay.classList.remove('hidden');
+  document.getElementById('scanHint').textContent = 'جارٍ فتح الكاميرا…';
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = scanStream;
+    await video.play();
+    document.getElementById('scanHint').textContent = 'وجّه الكاميرا نحو رمز QR في صفحة الجهاز…';
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const tick = () => {
+      if (!scanStream) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (code && code.data) { onQrDecoded(code.data); return; }
+      }
+      scanRAF = requestAnimationFrame(tick);
+    };
+    scanRAF = requestAnimationFrame(tick);
+  } catch (e) {
+    stopQrScan();
+    errEl.style.color='#B0272B';
+    errEl.textContent = (e.name==='NotAllowedError') ? 'تم رفض إذن الكاميرا' : ('خطأ بالكاميرا: '+e.message);
+  }
+}
+function stopQrScan() {
+  if (scanRAF) { cancelAnimationFrame(scanRAF); scanRAF = null; }
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  const v = document.getElementById('scanVideo'); if (v) v.srcObject = null;
+  document.getElementById('scanOverlay').classList.add('hidden');
+}
+function onQrDecoded(data) {
+  stopQrScan();
+  document.getElementById('setupCode').value = data;
+  importSetupCode();   // decode + fill the four fields
 }
 
 function saveSetup() {

@@ -1,6 +1,6 @@
 // KasshaIOT service worker — caches the app shell so the UI loads offline.
 // Bump CACHE_VERSION whenever you change the HTML/icons to force an update.
-const CACHE_VERSION = 'kasshaiot-v3';
+const CACHE_VERSION = 'kasshaiot-v4';
 
 // App-shell assets. CDN libs are cached opportunistically (cache-first with
 // network fallback) — MQTT itself still needs the network to talk to the broker.
@@ -13,6 +13,7 @@ const SHELL = [
   './icons/icon-512.png',
   'https://unpkg.com/mqtt@4/dist/mqtt.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js',
 ];
 
 self.addEventListener('install', (event) => {
