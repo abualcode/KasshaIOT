@@ -758,11 +758,12 @@ function tMin(t){ const x=tParse(t); return x.hr*60+x.mn; }
 function fmt12(t){ const x=tParse(t); const ap=x.hr<12?'ص':'م'; let h=x.hr%12; if(h===0)h=12; return h+':'+pad2(x.mn)+' '+ap; }
 function relayName(ch){ return labels[ch] || ('قاطع '+(ch+1)); }
 
-// A slot is "configured" (worth showing) only if it's enabled OR it has real
-// content (days chosen, or a pulse). A disabled slot with no days is treated
-// as empty/cleared and hidden.
+// A slot is "configured" (worth showing) only if it's enabled OR it has days
+// chosen. Do NOT test s.ps here — physToLogical defaults ps to defaultPulseSec
+// for non-pulse slots, so checking ps>0 would mark every empty slot as a ghost.
+// A real schedule always has ≥1 day (enforced by validation) or is enabled.
 function isConfigured(s){
-  return !!s && (s.en || s.dy!==0 || s.ps>0);
+  return !!s && (s.en || s.dy!==0);
 }
 
 function daysSummary(dy){
