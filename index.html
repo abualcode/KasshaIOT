@@ -328,6 +328,9 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
           <span id="schedDirty" class="dirty-badge hidden">● تغييرات غير محفوظة</span>
         </div>
         <div id="schedResult" class="foot-note"></div>
+        <div class="sep"></div>
+        <button class="warn-btn" onclick="clearAllSchedules()" style="font-size:13px;">&#x1F5D1; مسح جميع المواعيد نهائياً</button>
+        <p class="foot-note" style="margin-top:6px;">يحذف كل المواعيد من الجهاز ومن الخادم (يزيل أي مواعيد قديمة عالقة).</p>
       </div>
     </details>
 
@@ -986,19 +989,40 @@ function validateSchedules(){
   return null;
 }
 
+// Root-cause-safe slot write. A zero-byte payload with retain:true DELETES any
+// retained command the broker is holding for this slot (so it can never
+// re-inject a "ghost" schedule on the next device reconnect). For an active
+// slot we then send the real CSV as a transient command — the device persists
+// it to NVS and owns the state, and the broker keeps no retained command.
+function publishSlot(slot, csvOrNull){
+  const topic = baseTopic + '/schedule/' + slot + '/set';
+  client.publish(topic, '', {retain:true});      // wipe stale retained command
+  if (csvOrNull !== null) client.publish(topic, csvOrNull);  // transient set
+}
+
 function saveAllSchedules(){
   if (!client || !client.connected) { result('schedResult', 'غير متصل بـ MQTT', false); return; }
   const err = validateSchedules();
   if (err) { result('schedResult', err, false); return; }
-  // Publish all 8 slots: shown ones carry their data; the rest are cleared.
-  const CLEARED = '0,0,0,0,0,0,0,0,0,0';   // v3 empty slot (days=0 → treated empty)
+  // Every slot: clear stale retained; shown slots also get their data. Deleted
+  // slots get only the clear → they're gone for good (no resurrection).
   for (let slot = 0; slot < MAX_SCHEDULES; slot++) {
     const s = schedData[slot];
-    if (s && shownSlots.includes(slot)) pub(baseTopic + '/schedule/' + slot + '/set', schedCsv(s, s.en));
-    else                                 pub(baseTopic + '/schedule/' + slot + '/set', CLEARED);
+    publishSlot(slot, (s && shownSlots.includes(slot)) ? schedCsv(s, s.en) : null);
   }
   clearDirty();
   result('schedResult', `✓ تم حفظ المواعيد (${shownSlots.length})`, true);
+}
+
+// Nuke every schedule at the source — clears all 8 retained commands + NVS.
+function clearAllSchedules(){
+  if (!client || !client.connected) { result('schedResult', 'غير متصل بـ MQTT', false); return; }
+  if (!confirm('سيتم حذف جميع المواعيد نهائياً من الجهاز والخادم. متابعة؟')) return;
+  for (let slot = 0; slot < MAX_SCHEDULES; slot++) publishSlot(slot, null);
+  schedData = {}; shownSlots = []; editingSlot = null;
+  clearDirty();
+  renderSchedules();
+  result('schedResult', '✓ تم مسح جميع المواعيد نهائياً', true);
 }
 
 // ── Pulse default ─────────────────────────────────────────────────────────────
