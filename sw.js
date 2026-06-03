@@ -1,6 +1,6 @@
 // KasshaIOT service worker — caches the app shell so the UI loads offline.
 // Bump CACHE_VERSION whenever you change the HTML/icons to force an update.
-const CACHE_VERSION = 'kasshaiot-v2';
+const CACHE_VERSION = 'kasshaiot-v3';
 
 // App-shell assets. CDN libs are cached opportunistically (cache-first with
 // network fallback) — MQTT itself still needs the network to talk to the broker.
@@ -37,19 +37,37 @@ self.addEventListener('fetch', (event) => {
   // Only handle GET; never cache MQTT/websocket traffic.
   if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
+  const req = event.request;
+  const isDoc = req.mode === 'navigate' ||
+                (req.headers.get('accept') || '').includes('text/html');
+
+  if (isDoc) {
+    // NETWORK-FIRST for the page itself — so a fresh deploy always wins when
+    // online; the cache is only an offline fallback. (Cache-first here was the
+    // bug that pinned users to a stale old page.)
+    event.respondWith(
+      fetch(req)
         .then((res) => {
-          // Cache successful same-style responses for next time.
-          if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
-            const clone = res.clone();
-            caches.open(CACHE_VERSION).then((c) => c.put(event.request, clone));
-          }
+          const clone = res.clone();
+          caches.open(CACHE_VERSION).then((c) => c.put(req, clone));
           return res;
         })
-        .catch(() => cached);  // offline and not cached → undefined (graceful)
+        .catch(() => caches.match(req).then((c) => c || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // CACHE-FIRST for static assets (icons, logo, CDN libs).
+  event.respondWith(
+    caches.match(req).then((cached) => {
+      if (cached) return cached;
+      return fetch(req).then((res) => {
+        if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
+          const clone = res.clone();
+          caches.open(CACHE_VERSION).then((c) => c.put(req, clone));
+        }
+        return res;
+      }).catch(() => cached);
     })
   );
 });

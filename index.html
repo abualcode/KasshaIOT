@@ -435,6 +435,10 @@ button.warn-btn{background:#B0272B;color:#fff;border:0;border-radius:var(--rs);p
           <div id="qrBox" style="display:flex;justify-content:center;"></div>
         </div>
         <div id="linkResult" class="foot-note"></div>
+        <div class="sep"></div>
+        <button class="gh" onclick="clearAppCache()">&#x1F504; مسح الذاكرة المؤقتة وإعادة التحميل</button>
+        <p class="foot-note">يحذف النسخة المخزّنة (Service Worker) ويعيد تحميل أحدث إصدار. استخدمه إذا ظهرت بيانات قديمة لا تتحدّث.</p>
+        <div id="cacheResult" class="foot-note"></div>
       </div>
     </details>
 
@@ -1086,6 +1090,27 @@ function clearCredentials() {
   if (client) { try { client.end(true); } catch(_){} client = null; }
   setPill('غير متصل', 'err');
   document.getElementById('setupOverlay').classList.remove('hidden');
+}
+
+// Unregister the service worker + delete all caches, then hard-reload so the
+// newest deployed version loads. Connection credentials (localStorage) are kept.
+async function clearAppCache() {
+  if (!confirm('سيتم مسح النسخة المخزّنة وإعادة تحميل أحدث إصدار. بياناتك (الاتصال) تبقى محفوظة. متابعة؟')) return;
+  result('cacheResult', 'جارٍ المسح...', true);
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    result('cacheResult', '✓ تم — إعادة التحميل...', true);
+    setTimeout(() => location.reload(true), 600);
+  } catch (e) {
+    result('cacheResult', 'خطأ: ' + e.message, false);
+  }
 }
 
 // ── Render relay grid ─────────────────────────────────────────────────────────
